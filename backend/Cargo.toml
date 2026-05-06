@@ -87,6 +87,9 @@ hex = "0.4"
 # System calls (statvfs for host disk in Docker)
 libc = "0.2"
 
+# Force vendored OpenSSL for cross-compile (ARM64, etc.)
+openssl = { version = "0.10", features = ["vendored"] }
+
 # System monitoring (CPU, memory, network)
 sysinfo = "0.33"
 
