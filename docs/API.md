@@ -50,11 +50,25 @@ Invalidate the current JWT token.
 
 **Response:** `200 OK`
 
+### POST /api/auth/change-password
+
+Change admin password.
+
+**Request:**
+```json
+{
+  "current_password": "string",
+  "new_password": "string"
+}
+```
+
+**Response:** `200 OK`
+
 ---
 
 ## System
 
-### GET /api/system/dashboard
+### GET /api/system/stats
 
 Returns dashboard statistics.
 
@@ -62,15 +76,34 @@ Returns dashboard statistics.
 ```json
 {
   "proxy_rules": 5,
-  "port_groups": 2,
+  "active_proxies": 3,
   "certificates": 1,
-  "ddns_domains": 3,
+  "auto_renew_certs": 1,
+  "version": "1.0.0",
+  "cpu_percent": 12,
+  "mem_percent": 48,
+  "mem_used": 503316480,
+  "mem_total": 1073741824,
+  "disk_percent": 35,
   "uptime_seconds": 3600,
-  "cpu_percent": 12.5,
-  "memory_used_mb": 48,
-  "memory_total_mb": 1024
+  "db_size_bytes": 20480
 }
 ```
+
+| Field | Type | Description |
+|---|---|---|
+| `proxy_rules` | int | Total proxy rules |
+| `active_proxies` | int | Enabled proxy rules |
+| `certificates` | int | Total certificates |
+| `auto_renew_certs` | int | Certificates with auto-renew enabled |
+| `version` | string | Unver version |
+| `cpu_percent` | int | CPU usage (0-100) |
+| `mem_percent` | int | Memory usage (0-100) |
+| `mem_used` | int | Used memory in bytes |
+| `mem_total` | int | Total memory in bytes |
+| `disk_percent` | int | Disk usage (0-100) |
+| `uptime_seconds` | int | Uptime in seconds |
+| `db_size_bytes` | int | Database file size in bytes |
 
 ### GET /api/system/network
 
@@ -91,6 +124,47 @@ Real-time network traffic.
 }
 ```
 
+### GET /api/system/public-ip
+
+Get the server's public IP address.
+
+**Response:** `200 OK`
+```json
+{
+  "ipv4": "1.2.3.4",
+  "ipv6": "2001:db8::1"
+}
+```
+
+### GET /api/system/logs
+
+Recent logs (last 100 entries).
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": 1,
+    "level": "INFO",
+    "message": "DDNS: Updated A home.example.com -> 1.2.3.4",
+    "created_at": "2025-01-01 12:00:00"
+  }
+]
+```
+
+### GET /api/system/logs/:category
+
+Logs filtered by category.
+
+| Category | Description |
+|---|---|
+| `ddns` | DDNS sync events |
+| `ssl` | SSL certificate events |
+| `login` | Authentication events |
+| `proxy` | Proxy access/error events |
+
+**Response:** same format as above, filtered.
+
 ### POST /api/system/restart
 
 Restart the Unver service.
@@ -107,6 +181,68 @@ Restart the Unver service.
 ### POST /api/system/renew-ssl
 
 Manually trigger renewal of all SSL certificates.
+
+**Response:** `200 OK`
+
+---
+
+## Settings
+
+### GET /api/settings
+
+Get all settings (secrets masked).
+
+**Response:** `200 OK`
+
+### PATCH /api/settings
+
+Update settings. All fields are optional.
+
+**Request:**
+```json
+{
+  "ddns_enabled": true,
+  "ddns_provider": "cloudflare",
+  "ddns_cf_token": "new-token",
+  "ddns_cf_zone_id": "zone-id",
+  "ddns_domain": "home.example.com",
+  "ddns_interval": 300,
+  "ddns_ip_source": "public"
+}
+```
+
+**Response:** `200 OK`
+
+### GET /api/settings/api-keys
+
+List all API keys.
+
+**Response:** `200 OK`
+
+### POST /api/settings/api-keys
+
+Create a new API key.
+
+**Response:** `201 Created`
+
+### DELETE /api/settings/api-keys/:id
+
+Delete an API key.
+
+**Response:** `200 OK`
+
+### GET /api/system/backup
+
+Export configuration (secrets excluded).
+
+**Response:** `200 OK` — JSON file download.
+
+### POST /api/system/restore
+
+Import configuration.
+
+**Request:** `multipart/form-data`
+- `file`: JSON export file
 
 **Response:** `200 OK`
 
@@ -176,11 +312,9 @@ Delete a port group and all associated proxy rules.
 
 ## Proxy Rules
 
-All proxy rule endpoints are scoped to a port group.
+### GET /api/proxies
 
-### GET /api/port-groups/:id/rules
-
-List all rules for a port group.
+List all proxy rules.
 
 **Response:** `200 OK`
 ```json
@@ -192,15 +326,19 @@ List all rules for a port group.
     "target_url": "http://localhost:3000",
     "rule_type": "proxy",
     "redirect_code": null,
+    "port_group_id": "uuid",
     "ssl_enabled": true,
     "force_https": true,
     "enabled": true,
-    "status": "online"
+    "status": "online",
+    "last_checked_at": "2025-01-01T00:00:00Z",
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z"
   }
 ]
 ```
 
-### POST /api/port-groups/:id/rules
+### POST /api/proxies
 
 Create a new proxy rule.
 
@@ -211,6 +349,7 @@ Create a new proxy rule.
   "domain": "app.example.com",
   "target_url": "http://localhost:3000",
   "rule_type": "proxy",
+  "port_group_id": "uuid",
   "ssl_enabled": true,
   "force_https": true,
   "enabled": true
@@ -224,19 +363,20 @@ Create a new proxy rule.
 | `target_url` | string | Upstream target URL |
 | `rule_type` | string | `"proxy"` \| `"redirect"` \| `"tcp"` |
 | `redirect_code` | int? | Redirect HTTP code (301/302/307/308) |
+| `port_group_id` | string | Port group UUID |
 | `ssl_enabled` | bool | Enable SSL for this domain |
 | `force_https` | bool | Redirect HTTP to HTTPS |
 | `enabled` | bool | Enable/disable the rule |
 
 **Response:** `201 Created` — returns the created rule.
 
-### PATCH /api/port-groups/:id/rules/:rule_id
+### PATCH /api/proxies/:id
 
 Update a proxy rule. All fields are optional.
 
 **Response:** `200 OK` — returns the updated rule.
 
-### DELETE /api/port-groups/:id/rules/:rule_id
+### DELETE /api/proxies/:id
 
 Delete a proxy rule.
 
@@ -293,13 +433,19 @@ Poll certificate issuance progress.
 {
   "status": "in_progress",
   "logs": [
-    { "level": "info", "message": "ACME 账户就绪" },
-    { "level": "info", "message": "📋 订单: example.com" }
+    { "level": "info", "message": "ACME account ready" },
+    { "level": "info", "message": "Order: example.com" }
   ]
 }
 ```
 
 Status values: `"in_progress"` | `"success"` | `"failed"`
+
+### PATCH /api/certificates/:id
+
+Update a certificate record.
+
+**Response:** `200 OK`
 
 ### DELETE /api/certificates/:id
 
@@ -322,6 +468,12 @@ Upload an existing certificate.
 - `key`: PEM private key file
 
 **Response:** `201 Created`
+
+### POST /api/certificates/test
+
+Test certificate setup (Cloudflare connectivity, domain validation).
+
+**Response:** `200 OK`
 
 ---
 
@@ -389,94 +541,3 @@ List Cloudflare zones.
 Delete a domain from DDNS and remove DNS records from Cloudflare.
 
 **Response:** `200 OK`
-
----
-
-## Settings
-
-### GET /api/settings
-
-Get all settings (secrets masked).
-
-**Response:** `200 OK`
-
-### PATCH /api/settings
-
-Update settings. All fields are optional.
-
-**Request:**
-```json
-{
-  "ddns_enabled": true,
-  "ddns_provider": "cloudflare",
-  "ddns_cf_token": "new-token",
-  "ddns_cf_zone_id": "zone-id",
-  "ddns_domain": "home.example.com",
-  "ddns_interval": 300,
-  "ddns_ip_source": "public"
-}
-```
-
-**Response:** `200 OK`
-
-### POST /api/settings/password
-
-Change admin password.
-
-**Request:**
-```json
-{
-  "current_password": "string",
-  "new_password": "string"
-}
-```
-
-**Response:** `200 OK`
-
-### POST /api/settings/import
-
-Import configuration.
-
-**Request:** `multipart/form-data`
-- `file`: JSON export file
-
-**Response:** `200 OK`
-
-### GET /api/settings/export
-
-Export configuration (secrets excluded).
-
-**Response:** `200 OK` — JSON file download.
-
----
-
-## Logs
-
-### GET /api/logs
-
-Recent logs (last 100 entries).
-
-**Response:** `200 OK`
-```json
-[
-  {
-    "id": 1,
-    "level": "INFO",
-    "message": "DDNS: Updated A home.example.com -> 1.2.3.4",
-    "created_at": "2025-01-01 12:00:00"
-  }
-]
-```
-
-### GET /api/logs/:category
-
-Logs filtered by category.
-
-| Category | Description |
-|---|---|
-| `ddns` | DDNS sync events |
-| `ssl` | SSL certificate events |
-| `login` | Authentication events |
-| `proxy` | Proxy access/error events |
-
-**Response:** same format as above, filtered.
