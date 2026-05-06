@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM settings WHERE key LIKE 'acme_challenge_%' AND updated_at < datetime('now', '-1 hour')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "a9a6b5f04e3b43b051362f23c40ac78b0787f4a13f5ecda781c9f008ef924a46"
+}
