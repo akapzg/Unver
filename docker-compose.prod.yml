@@ -1,9 +1,11 @@
 # Unver — Production Docker Deployment
 #
-# Pull pre-built image from GitHub Container Registry.
-# For first-time setup:
-#   1. mkdir -p data && touch data/config.toml
-#   2. docker compose -f docker-compose.prod.yml up -d
+# Default: host network (simplest, no port mapping issues).
+# For port mapping, comment out network_mode and uncomment ports.
+#
+# First-time setup:
+#   mkdir -p data
+#   docker compose -f docker-compose.prod.yml up -d
 #
 # Upgrade:
 #   docker compose -f docker-compose.prod.yml pull
@@ -14,10 +16,11 @@ services:
     image: ghcr.io/akapzg/unver:latest
     container_name: unver
     restart: unless-stopped
-    ports:
-      - "80:80"         # HTTP → HTTPS redirect (requires port group on :80)
-      - "443:8443"      # HTTPS proxy (default port is 8443; use 443:443 if you change it)
-      - "19688:19688"   # Management UI & API
+    network_mode: host
+#   ports:                          # Use these instead of network_mode: host
+#     - "80:80"                     #   HTTP → HTTPS redirect
+#     - "443:8443"                  #   HTTPS proxy (Unver default 8443)
+#     - "19688:19688"               #   Management UI & API
     volumes:
       - ./data:/app/data
     environment:
