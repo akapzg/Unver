@@ -23,19 +23,16 @@ RUN case "${TARGETPLATFORM}" in \
     rustup target add "${RUST_TARGET}" && \
     echo "RUST_TARGET=${RUST_TARGET}" > /tmp/target.env
 
-# Install target-specific cross-compilation deps
+# Install target-specific cross-compilation deps (linker only; vendored openssl handles TLS)
 RUN case "${TARGETPLATFORM}" in \
       "linux/arm64") \
-        apt-get update && apt-get install -y gcc-aarch64-linux-gnu libssl-dev:arm64 2>/dev/null || \
-        apt-get update && apt-get install -y crossbuild-essential-arm64 libssl-dev 2>/dev/null || true ;; \
+        apt-get update && apt-get install -y gcc-aarch64-linux-gnu ;; \
       "linux/arm/v7") \
-        dpkg --add-architecture armhf && apt-get update && \
-        apt-get install -y gcc-arm-linux-gnueabihf libssl-dev:armhf 2>/dev/null || \
-        apt-get update && apt-get install -y crossbuild-essential-armhf libssl-dev 2>/dev/null || true ;; \
+        apt-get update && apt-get install -y gcc-arm-linux-gnueabihf ;; \
     esac
 
-# Install build deps
-RUN apt-get update && apt-get install -y pkg-config libssl-dev sqlite3 libsqlite3-dev && rm -rf /var/lib/apt/lists/*
+# Install build deps (perl required for vendored OpenSSL)
+RUN apt-get update && apt-get install -y perl pkg-config libssl-dev sqlite3 libsqlite3-dev && rm -rf /var/lib/apt/lists/*
 
 COPY backend/Cargo.toml ./
 COPY backend/migrations ./migrations
