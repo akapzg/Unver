@@ -31,12 +31,15 @@ RUN case "${TARGETPLATFORM}" in \
         apt-get update && apt-get install -y gcc-arm-linux-gnueabihf ;; \
     esac
 
-# Install build deps (perl + make required for vendored OpenSSL)
-RUN apt-get update && apt-get install -y perl make pkg-config libssl-dev sqlite3 libsqlite3-dev && rm -rf /var/lib/apt/lists/*
+# Install build deps (perl + make for vendored OpenSSL, mold for fast linking)
+RUN apt-get update && apt-get install -y perl make pkg-config mold libssl-dev sqlite3 libsqlite3-dev && rm -rf /var/lib/apt/lists/*
 
 COPY backend/Cargo.toml ./
 COPY backend/migrations ./migrations
 COPY vendor ../vendor
+
+# Use mold linker for faster builds (5-10x LTO speedup)
+ENV RUSTFLAGS="-C link-arg=-fuse-ld=mold"
 
 # Cache dependencies with a dummy build
 ENV DATABASE_URL=sqlite:///tmp/unver-build.db

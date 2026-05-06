@@ -45,6 +45,19 @@ curl -fsSL https://raw.githubusercontent.com/akapzg/Unver/main/scripts/install-o
 
 ---
 
+## 🖥 命令行
+
+```bash
+unver         # 交互式菜单
+unver serve   # 启动服务
+unver version # 显示版本
+unver update  # 自动更新到最新版
+unver restart # 重启服务
+unver status  # 检查运行状态
+```
+
+---
+
 ## 📖 文档
 
 - [API 文档](docs/API.md)

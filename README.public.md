@@ -45,6 +45,19 @@ curl -fsSL https://raw.githubusercontent.com/akapzg/Unver/main/scripts/install-o
 
 ---
 
+## 🖥 CLI Commands
+
+```bash
+unver         # Interactive menu
+unver serve   # Start the service
+unver version # Show version
+unver update  # Self-update to latest release
+unver restart # Restart the service
+unver status  # Check if running
+```
+
+---
+
 ## 📖 Documentation
 
 - [API Documentation](docs/API.md)

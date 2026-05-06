@@ -1,4 +1,5 @@
 mod api;
+mod cli;
 mod config;
 mod db;
 mod ddns;
@@ -25,6 +26,12 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // CLI commands (version, update, restart, status, interactive menu) exit early.
+    // Returns false for "serve" — fall through to start the full service.
+    if cli::run().await? {
+        return Ok(());
+    }
+
     dotenvy::dotenv().ok();
 
     rustls::crypto::ring::default_provider()
