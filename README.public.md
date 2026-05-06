@@ -1,6 +1,8 @@
 # Unver
 
-> 一个专为家庭 / 个人设计的、极简且高性能的反向代理面板。
+[中文文档](README.zh.md)
+
+> A minimalist, high-performance reverse proxy panel designed for home / personal use.
 
 ---
 
