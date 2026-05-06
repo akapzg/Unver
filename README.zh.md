@@ -15,6 +15,7 @@
 - ✅ **DDNS 自动同步** — Cloudflare A/AAAA 记录，IP 变化自动更新
 - ✅ **HTTP → HTTPS** — 连接层 301 跳转 + HSTS，零明文泄漏
 - ✅ **HTTP/2** — TLS 连接自动协商 h2
+- ✅ **Rust 编写** — 内存占用不到 10MB，单文件静态编译，无 GC 卡顿
 
 ---
 

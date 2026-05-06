@@ -398,6 +398,7 @@ const Dashboard = () => {
               </div>
             </>
           )}
+        </div>
       </div>
 
       {/* ── System Logs — Collapsible Cards ── */}

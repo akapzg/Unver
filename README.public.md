@@ -15,6 +15,7 @@
 - ✅ **DDNS Auto-Sync** — Cloudflare A/AAAA records, auto-update on IP change
 - ✅ **HTTP → HTTPS** — connection-level 301 redirect + HSTS, zero plaintext leak
 - ✅ **HTTP/2** — auto h2 negotiation on TLS connections
+- ✅ **Rust-Powered** — sub-10 MB memory footprint, single static binary, no GC pauses
 
 ---
 
