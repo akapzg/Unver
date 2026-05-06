@@ -230,7 +230,8 @@ pub async fn system_stats(
         .unwrap_or(0) as i64;
 
     let sys_load = crate::network::get_system_load();
-    let uptime_secs = state.start_time.elapsed().as_secs();
+    let uptime_secs = crate::network::host_uptime_secs()
+        .unwrap_or_else(|| state.start_time.elapsed().as_secs());
     let db_path = state.config.data_dir.join("unver.db");
     let db_size_bytes = std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0);
 

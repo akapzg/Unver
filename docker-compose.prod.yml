@@ -23,6 +23,10 @@ services:
 #     - "19688:19688"               #   Management UI & API
     volumes:
       - ./data:/app/data
+# --- Optional: mount host /proc for accurate Docker dashboard metrics ---
+#     - /proc:/host/proc:ro       # Host CPU / memory / uptime
+#     - /:/host:ro                # Host disk usage
+# ------------------------------------------------------------------------
     environment:
       - RUST_LOG=unver=info,tower_http=warn
     cap_add:
