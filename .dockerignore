@@ -1,0 +1,37 @@
+# Build artifacts
+backend/target/
+frontend/node_modules/
+frontend/dist/
+
+# Database files
+*.db
+*.db-*
+
+# Runtime data
+data/
+backend/data/
+
+# Environment
+.env
+config.toml
+
+# Git
+.git/
+.gitignore
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Dev plans
+.hermes/
+
+# Rust
+backend/.rustc_info.json
+
+# Compiled binary
+unver
+
+# Vendor .git (huge, not needed for build)
+vendor/*/.git/

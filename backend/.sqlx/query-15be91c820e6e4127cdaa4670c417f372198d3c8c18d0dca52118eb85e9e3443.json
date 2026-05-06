@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT domain FROM certificates WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "domain",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "15be91c820e6e4127cdaa4670c417f372198d3c8c18d0dca52118eb85e9e3443"
+}

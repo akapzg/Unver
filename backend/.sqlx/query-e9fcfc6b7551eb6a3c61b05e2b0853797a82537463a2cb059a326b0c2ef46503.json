@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT domain, cert_pem, key_pem FROM certificates WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "domain",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "cert_pem",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "key_pem",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e9fcfc6b7551eb6a3c61b05e2b0853797a82537463a2cb059a326b0c2ef46503"
+}

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT domain FROM proxy_rules WHERE ssl_enabled = 1 AND enabled = 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "domain",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e72a2ef4334a922f4561b293489126e155851fabf3e4266d0756b9f84c6836c2"
+}

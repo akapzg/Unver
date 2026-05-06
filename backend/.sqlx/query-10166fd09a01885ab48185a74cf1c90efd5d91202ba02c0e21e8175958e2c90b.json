@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, name, domain, target_url, rule_type, redirect_code, port_group_id,\n           ssl_enabled, force_https, enabled, status,\n           last_checked_at, created_at, updated_at\n           FROM proxy_rules ORDER BY created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "domain",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "target_url",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "rule_type",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "redirect_code",
+        "ordinal": 5,
+        "type_info": "Int64"
+      },
+      {
+        "name": "port_group_id",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "ssl_enabled",
+        "ordinal": 7,
+        "type_info": "Int64"
+      },
+      {
+        "name": "force_https",
+        "ordinal": 8,
+        "type_info": "Int64"
+      },
+      {
+        "name": "enabled",
+        "ordinal": 9,
+        "type_info": "Int64"
+      },
+      {
+        "name": "status",
+        "ordinal": 10,
+        "type_info": "Text"
+      },
+      {
+        "name": "last_checked_at",
+        "ordinal": 11,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 12,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 13,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "10166fd09a01885ab48185a74cf1c90efd5d91202ba02c0e21e8175958e2c90b"
+}

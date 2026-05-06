@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE proxy_rules SET port_group_id = ?, updated_at = datetime('now') WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "fd7776636ef2a90210a70504d8ab4e5cd1ee3876ff1dbd95640300bf292e6dea"
+}

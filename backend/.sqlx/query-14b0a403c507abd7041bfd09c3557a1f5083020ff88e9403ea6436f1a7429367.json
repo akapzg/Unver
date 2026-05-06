@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO logs (level, message, created_at) VALUES (?, ?, datetime('now','localtime'))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "14b0a403c507abd7041bfd09c3557a1f5083020ff88e9403ea6436f1a7429367"
+}

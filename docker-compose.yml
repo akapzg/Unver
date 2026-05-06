@@ -1,0 +1,36 @@
+# Unver — Lightweight Reverse Proxy Manager
+# Multi-arch: amd64 · arm64 · arm/v7 (OpenWRT, Raspberry Pi)
+#
+# Build once, push to registry:
+#   docker buildx create --use --name multiarch
+#   docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 \
+#       -t unver:latest --push .
+#
+# Or build single-arch (current machine):
+#   docker compose build
+#   docker compose up -d
+
+version: '3.8'
+
+services:
+  unver:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: unver
+    ports:
+      - "80:80"       # Proxy HTTP
+      - "443:443"     # Proxy HTTPS
+      - "19688:19688" # Management UI & API
+    volumes:
+      - ./data:/app/data
+    environment:
+      - RUST_LOG=unver=info,tower_http=warn
+      - UNVER_CONFIG=/app/data/config.toml
+    restart: unless-stopped
+    networks:
+      - unver-network
+
+networks:
+  unver-network:
+    driver: bridge

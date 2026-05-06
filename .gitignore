@@ -1,0 +1,38 @@
+# Build artifacts
+backend/target/
+frontend/node_modules/
+frontend/dist/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Runtime data
+data/
+backend/data/
+backend/unver.db
+
+# Environment
+.env
+config.toml
+
+# Compiled binary
+unver
+backend/unver
+
+# Rust
+backend/.rustc_info.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dev plans
+.hermes/

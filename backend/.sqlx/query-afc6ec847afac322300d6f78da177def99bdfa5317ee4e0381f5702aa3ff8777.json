@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO certificates (id, domain, cert_pem, key_pem, expires_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(domain) DO UPDATE SET cert_pem = excluded.cert_pem, key_pem = excluded.key_pem, expires_at = excluded.expires_at, updated_at = datetime('now')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "afc6ec847afac322300d6f78da177def99bdfa5317ee4e0381f5702aa3ff8777"
+}

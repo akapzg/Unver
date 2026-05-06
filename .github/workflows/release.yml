@@ -1,0 +1,141 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ── Docker multi-arch build & push to GHCR ────────────────────────────
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/akapzg/unver:${{ env.VERSION }}
+            ${{ env.REGISTRY }}/akapzg/unver:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Binary builds (Linux x86_64 + aarch64 / ARM64) ───────────────────
+  binaries:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            artifact: unver-linux-amd64
+            display: Linux x86_64
+          - target: aarch64-unknown-linux-gnu
+            artifact: unver-linux-arm64
+            display: Linux ARM64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation deps (ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build backend
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: |
+          cd backend
+          sudo apt-get install -y sqlite3
+          DATABASE_URL="sqlite:/tmp/unver.db" sqlite3 /tmp/unver.db < migrations/001_init.sql
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Package binary
+        run: |
+          mkdir -p dist
+          tar -czf dist/${{ matrix.artifact }}.tar.gz \
+            -C backend/target/${{ matrix.target }}/release unver
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}.tar.gz
+
+  # ── Publish to public repo (akapzg/Unver) ────────────────────────────
+  publish:
+    needs: [docker, binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create public repo release
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: akapzg/Unver
+          tag_name: v${{ env.VERSION }}
+          name: v${{ env.VERSION }}
+          body: |
+            ## Docker
+
+            ```bash
+            docker pull ghcr.io/akapzg/unver:${{ env.VERSION }}
+            ```
+
+            ## One-Click Install
+
+            ### Linux
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/akapzg/Unver/main/scripts/install.sh | bash
+            ```
+
+            ### OpenWrt
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/akapzg/Unver/main/scripts/install-openwrt.sh | bash
+            ```
+          files: |
+            dist/unver-linux-amd64/unver-linux-amd64.tar.gz
+            dist/unver-linux-arm64/unver-linux-arm64.tar.gz
+          token: ${{ secrets.PUBLIC_REPO_TOKEN }}

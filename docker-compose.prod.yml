@@ -1,0 +1,26 @@
+# Unver — Production Docker Deployment
+#
+# Pull pre-built image from GitHub Container Registry.
+# For first-time setup:
+#   1. mkdir -p data && touch data/config.toml
+#   2. docker compose -f docker-compose.prod.yml up -d
+#
+# Upgrade:
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+
+services:
+  unver:
+    image: ghcr.io/akapzg/unver:latest
+    container_name: unver
+    restart: unless-stopped
+    ports:
+      - "80:80"         # Proxy HTTP
+      - "443:443"       # Proxy HTTPS
+      - "19688:19688"   # Management UI & API
+    volumes:
+      - ./data:/app/data
+    environment:
+      - RUST_LOG=unver=info,tower_http=warn
+    cap_add:
+      - NET_BIND_SERVICE

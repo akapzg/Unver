@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, name, listen_port, enabled, skip_tls_verify, force_https, created_at, updated_at FROM port_groups WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "listen_port",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "enabled",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "skip_tls_verify",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "force_https",
+        "ordinal": 5,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 7,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "83441a8dba184cce908f4738776090de3e3dd2ca59ebc00ba79d9ade43058dd0"
+}

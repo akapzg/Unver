@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE port_groups SET listen_port = ?, updated_at = datetime('now') WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "17f3fbece807c03df7c957ea9fbbadd6f02d8072a9caafa7a8cde153b3adb288"
+}

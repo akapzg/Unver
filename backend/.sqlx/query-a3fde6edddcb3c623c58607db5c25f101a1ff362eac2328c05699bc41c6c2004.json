@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO port_groups (id, name, listen_port, enabled, skip_tls_verify, force_https) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "a3fde6edddcb3c623c58607db5c25f101a1ff362eac2328c05699bc41c6c2004"
+}

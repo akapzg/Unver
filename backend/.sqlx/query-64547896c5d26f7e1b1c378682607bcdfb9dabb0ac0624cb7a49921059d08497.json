@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM proxy_rules WHERE port_group_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "64547896c5d26f7e1b1c378682607bcdfb9dabb0ac0624cb7a49921059d08497"
+}
