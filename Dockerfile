@@ -39,6 +39,7 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev sqlite3 libsqlite
 
 COPY backend/Cargo.toml ./
 COPY backend/migrations ./migrations
+COPY vendor ../vendor
 
 # Cache dependencies with a dummy build
 ENV DATABASE_URL=sqlite:///tmp/unver-build.db
