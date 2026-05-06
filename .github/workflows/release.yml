@@ -111,16 +111,22 @@ jobs:
         with:
           path: dist
 
-      - name: Sync public READMEs to public repo
+      - name: Sync public files to public repo
         run: |
           git clone https://x-access-token:${{ secrets.PUBLIC_REPO_TOKEN }}@github.com/akapzg/Unver.git /tmp/unver-public
           cp README.public.md /tmp/unver-public/README.md
           cp README.zh.md /tmp/unver-public/README.zh.md
+          cp docker-compose.prod.yml /tmp/unver-public/docker-compose.prod.yml
+          cp scripts/install.sh /tmp/unver-public/scripts/install.sh
+          cp scripts/install-openwrt.sh /tmp/unver-public/scripts/install-openwrt.sh
+          cp docs/API.md /tmp/unver-public/docs/API.md
+          cp docs/API.zh.md /tmp/unver-public/docs/API.zh.md
+          cp LICENSE /tmp/unver-public/LICENSE
           cd /tmp/unver-public
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
-          git add README.md README.zh.md
-          git diff --cached --quiet || git commit -m "Sync READMEs from v${{ env.VERSION }}"
+          git add -A
+          git diff --cached --quiet || git commit -m "Sync from private repo v${{ env.VERSION }}"
           git push
 
       - name: Create public repo release
