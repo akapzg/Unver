@@ -1,5 +1,7 @@
 # Unver — Internal Developer Documentation
 
+[中文文档](README.zh.internal.md)
+
 > Lightweight reverse proxy management panel. Source repository (closed-source).
 
 ---

@@ -111,6 +111,18 @@ jobs:
         with:
           path: dist
 
+      - name: Sync public READMEs to public repo
+        run: |
+          git clone https://x-access-token:${{ secrets.PUBLIC_REPO_TOKEN }}@github.com/akapzg/Unver.git /tmp/unver-public
+          cp README.public.md /tmp/unver-public/README.md
+          cp README.zh.md /tmp/unver-public/README.zh.md
+          cd /tmp/unver-public
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add README.md README.zh.md
+          git diff --cached --quiet || git commit -m "Sync READMEs from v${{ env.VERSION }}"
+          git push
+
       - name: Create public repo release
         uses: softprops/action-gh-release@v2
         with:
