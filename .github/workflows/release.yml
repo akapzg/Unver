@@ -117,7 +117,6 @@ jobs:
           cp README.public.md /tmp/unver-public/README.md
           cp README.zh.md /tmp/unver-public/README.zh.md
           cp docker-compose.prod.yml /tmp/unver-public/docker-compose.prod.yml
-          cp docker-compose.yml /tmp/unver-public/docker-compose.yml
           cp scripts/install.sh /tmp/unver-public/scripts/install.sh
           cp scripts/install-openwrt.sh /tmp/unver-public/scripts/install-openwrt.sh
           cp docs/API.md /tmp/unver-public/docs/API.md
