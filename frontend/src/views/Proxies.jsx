@@ -18,7 +18,7 @@ const Proxies = () => {
   // Modal state
   const [showPgModal, setShowPgModal] = useState(false);
   const [showRuleModal, setShowRuleModal] = useState(false);
-  const [pgForm, setPgForm] = useState({ name: '', listen_port: 8443, enabled: true, skip_tls_verify: false });
+  const [pgForm, setPgForm] = useState({ name: '', listen_port: 8443, enabled: true, skip_tls_verify: false, force_https: false });
   const [editingPgId, setEditingPgId] = useState(null);
   const [ruleForm, setRuleForm] = useState({ name: '', domain: '', target_url: '', rule_type: 'proxy', redirect_code: 301, ssl_enabled: false, port_group_id: '' });
   const [editingRuleId, setEditingRuleId] = useState(null);
@@ -58,10 +58,10 @@ const Proxies = () => {
   // ── Port Group CRUD ──
   const openPgModal = (pg = null) => {
     if (pg) {
-      setPgForm({ name: pg.name, listen_port: pg.listen_port, enabled: pg.enabled, skip_tls_verify: pg.skip_tls_verify });
+      setPgForm({ name: pg.name, listen_port: pg.listen_port, enabled: pg.enabled, skip_tls_verify: pg.skip_tls_verify, force_https: pg.force_https });
       setEditingPgId(pg.id);
     } else {
-      setPgForm({ name: '', listen_port: 8443, enabled: true, skip_tls_verify: false });
+      setPgForm({ name: '', listen_port: 8443, enabled: true, skip_tls_verify: false, force_https: false });
       setEditingPgId(null);
     }
     setShowPgModal(true);
@@ -342,6 +342,22 @@ const Proxies = () => {
                 <label className="form-label">{t('listenPort')}</label>
                 <input className="form-input" type="number" min={1} max={65535} value={pgForm.listen_port}
                   onChange={e => setPgForm({ ...pgForm, listen_port: parseInt(e.target.value) || 443 })} required />
+              </div>
+              <div className="form-group">
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={pgForm.force_https || false}
+                    onChange={e => setPgForm({ ...pgForm, force_https: e.target.checked })} />
+                  <span>{t('forceHttps')}</span>
+                </label>
+                <p className="form-hint" style={{ marginTop: 4 }}>{t('forceHttpsDesc')}</p>
+              </div>
+              <div className="form-group">
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={pgForm.skip_tls_verify || false}
+                    onChange={e => setPgForm({ ...pgForm, skip_tls_verify: e.target.checked })} />
+                  <span>{t('skipTlsVerify')}</span>
+                </label>
+                <p className="form-hint" style={{ marginTop: 4 }}>{t('skipTlsVerifyDesc')}</p>
               </div>
               <footer className="modal-footer">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowPgModal(false)}>{t('cancel')}</button>
