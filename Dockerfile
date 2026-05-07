@@ -31,24 +31,21 @@ RUN case "${TARGETPLATFORM}" in \
         apt-get update && apt-get install -y gcc-arm-linux-gnueabihf ;; \
     esac
 
-# Install build deps (perl + make for vendored OpenSSL, mold for fast linking)
+# Install build deps (perl + make for vendored OpenSSL, mold for fast x86_64 linking)
 RUN apt-get update && apt-get install -y perl make pkg-config mold libssl-dev sqlite3 libsqlite3-dev && rm -rf /var/lib/apt/lists/*
 
 COPY backend/Cargo.toml ./
 COPY backend/migrations ./migrations
 COPY vendor ../vendor
 
-# mold linker for native x86_64 only (cross-compile uses system linker)
-RUN case "${TARGETPLATFORM}" in \
-      "linux/amd64") echo 'RUSTFLAGS=-C link-arg=-fuse-ld=mold' >> /tmp/target.env ;; \
-      *) echo 'RUSTFLAGS=' >> /tmp/target.env ;; \
-    esac
-
 # Cache dependencies with a dummy build
 ENV DATABASE_URL=sqlite:///tmp/unver-build.db
 RUN sqlite3 /tmp/unver-build.db < migrations/001_init.sql
 RUN mkdir -p src && echo "fn main() {}" > src/main.rs && \
     . /tmp/target.env && \
+    if [ "${TARGETPLATFORM}" = "linux/amd64" ]; then \
+      export RUSTFLAGS="-C link-arg=-fuse-ld=mold"; \
+    fi && \
     cargo build --release --target "${RUST_TARGET}" && rm -rf src
 
 # Copy real source and force recompilation
@@ -56,6 +53,9 @@ COPY backend/src ./src
 RUN . /tmp/target.env && \
     rm -rf target/${RUST_TARGET}/release/.fingerprint/unver-* && \
     touch src/main.rs && \
+    if [ "${TARGETPLATFORM}" = "linux/amd64" ]; then \
+      export RUSTFLAGS="-C link-arg=-fuse-ld=mold"; \
+    fi && \
     cargo build --release --target "${RUST_TARGET}" && \
     cp target/${RUST_TARGET}/release/unver /tmp/unver-bin
 
