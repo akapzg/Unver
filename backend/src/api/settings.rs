@@ -781,7 +781,7 @@ pub async fn upload_certificate(
         }
     }
 
-    crate::logger::info(&state.db, &format!("Manual certificate uploaded for {}", domain)).await;
+    crate::logger::info(&state.db, &format!("Certificate uploaded for {} (manual)", domain)).await;
     Ok(Json(json!({ "message": "Certificate uploaded", "id": id, "domain": domain, "expires_at": expires_at })))
 }
 
