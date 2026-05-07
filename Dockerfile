@@ -69,4 +69,4 @@ COPY --from=frontend-builder /app/frontend/dist /app/dist
 RUN mkdir -p /app/data
 
 EXPOSE 80 443 19688
-CMD ["/app/unver"]
+CMD ["/app/unver", "start"]

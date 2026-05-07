@@ -72,11 +72,6 @@
         "name": "updated_at",
         "ordinal": 13,
         "type_info": "Text"
-      },
-      {
-        "name": "cert_id",
-        "ordinal": 14,
-        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -96,8 +91,7 @@
       false,
       true,
       false,
-      false,
-      true
+      false
     ]
   },
   "hash": "412d9481e2b96f107077f6a4a37e63f609ef917f44c79aaaf49c01687f6fb2f2"
