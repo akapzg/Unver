@@ -133,7 +133,9 @@ pub type SharedNetTracker = std::sync::Arc<tokio::sync::RwLock<NetTracker>>;
 
 /// Spawn a background task that polls network stats every 2 seconds.
 pub async fn run_network_monitor(tracker: SharedNetTracker) {
-    let mut sys = System::new_all();
+    let mut sys = System::new();
+    sys.refresh_cpu_all();
+    sys.refresh_memory();
     let mut nets = Networks::new_with_refreshed_list();
 
     loop {
@@ -241,7 +243,7 @@ pub fn get_system_load() -> SystemLoad {
     }
 
     // ── Native mode: use sysinfo ──
-    let mut sys = System::new_all();
+    let mut sys = System::new();
     sys.refresh_cpu_all();
     sys.refresh_memory();
 
