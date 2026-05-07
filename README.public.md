@@ -70,3 +70,7 @@ unver status  # Check if running
 Proprietary license. No decompilation, modification, or unauthorized redistribution.
 
 See [LICENSE](LICENSE).
+
+## 🔗 Third-Party Licenses
+
+- [instant-acme](https://github.com/instant-acme/instant-acme) — Apache 2.0

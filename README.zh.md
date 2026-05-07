@@ -70,3 +70,7 @@ unver status  # 检查运行状态
 本软件使用专有许可证，禁止反编译、修改及未经授权的再分发。
 
 详见 [LICENSE](LICENSE)。
+
+## 🔗 第三方许可
+
+- [instant-acme](https://github.com/instant-acme/instant-acme) — Apache 2.0
