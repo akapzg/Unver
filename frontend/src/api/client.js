@@ -98,6 +98,8 @@ export const api = {
   exportConfig:  ()       => client.get('/system/backup'),
   importConfig:  (body)   => client.post('/system/restore', body),
   renewSsl:      ()       => client.post('/system/renew-ssl'),
+  checkUpdate:   ()       => client.get('/system/check-update'),
+  performUpdate: ()       => client.post('/system/update'),
 
   // DDNS
   ddnsStatus:    ()       => client.get('/ddns/status'),

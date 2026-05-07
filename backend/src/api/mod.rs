@@ -80,6 +80,8 @@ pub async fn serve(
         .route("/system/restore",     post(settings::import_config))
         .route("/system/restart",     post(settings::restart_service))
         .route("/system/renew-ssl",   post(settings::renew_ssl))
+        .route("/system/check-update", get(settings::check_update))
+        .route("/system/update",      post(settings::perform_update))
         .route("/ddns/status",        get(settings::ddns_status))
         .route("/ddns/toggle/:domain", patch(settings::ddns_toggle))
         .route("/ddns/test",          post(settings::ddns_test))
@@ -102,9 +104,12 @@ pub async fn serve(
         .route("/auth/refresh", post(auth::refresh))
         .route("/auth/logout",  post(auth::logout));
 
-    let api = Router::new()
+    let api_routes = Router::new()
         .merge(public_api)
-        .merge(protected)
+        .merge(protected);
+
+    let api = Router::new()
+        .nest("/api", api_routes)
         .layer(Extension(Arc::clone(&ssl_worker)))
         .with_state(Arc::clone(&state));
 

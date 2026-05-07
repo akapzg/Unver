@@ -51,7 +51,7 @@ curl -fsSL https://raw.githubusercontent.com/akapzg/Unver/main/scripts/install-o
 
 ```bash
 unver         # Interactive menu
-unver serve   # Start the service
+unver start   # Start the service
 unver version # Show version
 unver update  # Self-update to latest release
 unver restart # Restart the service

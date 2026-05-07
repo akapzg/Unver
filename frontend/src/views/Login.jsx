@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useTheme } from '../store/ThemeContext';
 import { useTranslation } from 'react-i18next';
-import { Sun, Moon, Languages } from 'lucide-react';
+import { Sun, Moon, Languages, LogIn } from 'lucide-react';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -69,7 +69,7 @@ const Login = () => {
             />
           </div>
           <button type="submit" className="btn btn-primary w-full mt-4" disabled={loading} aria-label={t('loginButton')}>
-            {loading ? <div className="spinner" /> : t('loginButton')}
+            {loading ? <div className="spinner" /> : <><LogIn size={16} />{t('loginButton')}</>}
           </button>
         </form>
 

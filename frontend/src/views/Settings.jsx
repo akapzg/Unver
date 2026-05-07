@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmDialog';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import client from '../api/client';
-import { Key, Plus, Trash2, Copy, Check, Shield, User, Download, Upload, Server, RefreshCw } from 'lucide-react';
+import { Key, Plus, Trash2, Copy, Check, User, Download, Upload, Server, RefreshCw, Save } from 'lucide-react';
 
 const Settings = () => {
   const { t } = useTranslation();
   const { addToast } = useToast();
+  const { confirm } = useConfirm();
   const {
     settings, fetchSettings, updateSettings,
     apiKeys, fetchApiKeys, createApiKey, deleteApiKey
@@ -72,8 +74,8 @@ const Settings = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDeleteKey = (key) => {
-    if (!window.confirm(t('confirmDelete'))) return;
+  const handleDeleteKey = async (key) => {
+    if (!await confirm(t('confirmDelete'))) return;
     deleteApiKey(key.id);
     setApiKeyFull('');
   };
@@ -133,6 +135,10 @@ const Settings = () => {
 
   // ── Web Panel ──
   const handleSavePanel = async () => {
+    if (panelPort === '' || panelPort < 1 || panelPort > 65535) {
+      addToast(t('portInvalid'), 'error');
+      return;
+    }
     try {
       await updateSettings({ web_port: panelPort, panel_lan_only: panelLanOnly, trusted_proxy: trustedProxy });
       addToast(t('configSaved'), 'success');
@@ -142,7 +148,7 @@ const Settings = () => {
   };
 
   const handleRestart = async () => {
-    if (!window.confirm(t('confirmRestart'))) return;
+    if (!await confirm(t('confirmRestart'))) return;
     try {
       await client.post('/system/restart');
       addToast(t('restarting'), 'info');
@@ -188,6 +194,7 @@ const Settings = () => {
           {pwError && <div className="auth-error mb-3">{pwError}</div>}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto' }}>
             <button className="btn btn-primary" onClick={handleChangePassword} disabled={pwSaving} aria-label={t('changePassword')}>
+              <Key size={16} />
               <span>{t('changePassword')}</span>
             </button>
           </div>
@@ -202,7 +209,7 @@ const Settings = () => {
           <div className="form-group mb-3">
             <label className="form-label">{t('listenPort')}</label>
             <input type="number" className="form-input" value={panelPort}
-              onChange={e => setPanelPort(parseInt(e.target.value) || 19688)} />
+              onChange={e => { const v = e.target.value.trim(); setPanelPort(v === '' ? '' : parseInt(v)); }} />
           </div>
           <div className="form-group mb-3">
             <div className="flex items-c justify-b">
@@ -212,7 +219,7 @@ const Settings = () => {
                   {panelLanOnly ? t('lanOnlyDesc') : t('allInterfacesDesc')}
                 </p>
               </div>
-              <label className="toggle toggle-sm">
+              <label className="toggle" aria-label={t('lanOnlyLabel')}>
                 <input type="checkbox" checked={panelLanOnly}
                   onChange={e => setPanelLanOnly(e.target.checked)} />
                 <span className="toggle-slider"></span>
@@ -230,9 +237,10 @@ const Settings = () => {
             <p className="text-muted text-sm mb-2">{t('requireRestart')}</p>
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-primary" onClick={handleSavePanel} aria-label={t('save')}>
+                <Save size={16} />
                 <span>{t('save')}</span>
               </button>
-              <button className="btn btn-ghost" onClick={handleRestart}>
+              <button className="btn btn-danger" onClick={handleRestart}>
                 <RefreshCw size={16} />
                 <span>{t('restart')}</span>
               </button>

@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { api } from '../api/client';
-import { Shield, Globe, Activity, Zap, FileText, ChevronDown, Wifi, Cpu, HardDrive, Download, Upload, Server, RefreshCw, Settings, Clock } from 'lucide-react';
+import { Shield, Globe, Zap, ChevronDown, Cpu, HardDrive, Server, RefreshCw, Settings, Clock } from 'lucide-react';
+import { useConfirm } from '../components/ConfirmDialog';
 
 // ── Mini Line Chart (SVG) — smooth ────────────────────────────────────
 const MiniLineChart = ({ data, color, height = 44 }) => {
@@ -83,7 +84,7 @@ const CollapsibleCard = ({ icon, title, count, logs, loading, extra, emptyText =
           {loading ? (
             <div className="text-center py-2"><div className="spinner" style={{ margin: '0 auto' }} /></div>
           ) : error ? (
-            <div className="text-center py-2 text-danger text-sm">加载失败</div>
+            <div className="text-center py-2 text-danger text-sm">{t('loadFailed')}</div>
           ) : logs.length === 0 ? (
             <div className="text-muted text-sm text-center py-2">{emptyText}</div>
           ) : (
@@ -108,6 +109,7 @@ const CollapsibleCard = ({ icon, title, count, logs, loading, extra, emptyText =
 const Dashboard = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { confirm } = useConfirm();
   const { stats, fetchStats } = useStore();
 
   const [logs, setLogs] = useState([]);
@@ -120,6 +122,11 @@ const Dashboard = () => {
   const [netHistory, setNetHistory] = useState({ rx: [], tx: [] });
   const [publicIpData, setPublicIpData] = useState(null);
   const [currentTime, setCurrentTime] = useState('');
+
+  // Update check
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   // Per-section error states
   const [logsError, setLogsError] = useState(false);
@@ -189,6 +196,31 @@ const Dashboard = () => {
     } catch (_) { setPublicIpError(true); }
   }, []);
 
+  // ── Update check handlers ──────────────────────────────────────────────
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    setUpdateInfo(null);
+    try {
+      const { data } = await api.checkUpdate();
+      setUpdateInfo(data);
+    } catch (_) {
+      setUpdateInfo({ error: true });
+    }
+    setCheckingUpdate(false);
+  };
+
+  const handlePerformUpdate = async () => {
+    if (!await confirm(t('updateConfirm'))) return;
+    setUpdating(true);
+    try {
+      const { data } = await api.performUpdate();
+      setUpdateInfo(data);
+    } catch (_) {
+      setUpdateInfo({ error: true, status: 'failed' });
+    }
+    setUpdating(false);
+  };
+
   useEffect(() => {
     fetchAllLogs();
     fetchCategorizedLogs('ddns', setDdnsLogs);
@@ -213,6 +245,17 @@ const Dashboard = () => {
     };
   }, [fetchAllLogs, fetchCategorizedLogs, fetchNetwork, fetchPublicIp]);
 
+  // Update sub text renderer
+  const renderUpdateSub = () => {
+    if (checkingUpdate) return <span className="text-muted text-sm">{t('checkingUpdate')}</span>;
+    if (updateInfo?.error) return <span className="text-sm" style={{ color: 'var(--danger)' }}>{t('updateCheckFailed')}</span>;
+    if (updateInfo?.status === 'updating') return <span className="text-sm" style={{ color: 'var(--accent)' }}>{t('updateUpdating')}</span>;
+    if (updateInfo?.has_update && updateInfo?.mode === 'docker') return <span className="text-sm" style={{ color: 'var(--success)' }}>{t('updateFoundDocker', { version: updateInfo.latest })}</span>;
+    if (updateInfo?.has_update) return <span className="text-sm" style={{ color: 'var(--success)' }}>{t('updateFound', { version: updateInfo.latest })}</span>;
+    if (updateInfo) return <span className="text-sm text-muted">{t('upToDate')}</span>;
+    return t('checkUpdate');
+  };
+
   // Clickable stat cards
   const cards = [
     {
@@ -235,9 +278,14 @@ const Dashboard = () => {
       label: t('version'),
       value: stats?.version || '0.1.0',
       icon: <Globe className="text-accent-2" />,
-      sub: t('checkUpdate'),
-      onClick: null,
-      clickable: false,
+      sub: updateInfo ? renderUpdateSub() : t('checkUpdate'),
+      onClick: () => {
+        if (checkingUpdate || updating) return;
+        if (updateInfo?.has_update && updateInfo?.mode === 'bare_metal') handlePerformUpdate();
+        else if (updateInfo?.has_update && updateInfo?.mode === 'docker') window.open(updateInfo.html_url, '_blank');
+        else handleCheckUpdate();
+      },
+      clickable: true,
     },
   ];
 
@@ -349,7 +397,7 @@ const Dashboard = () => {
               </div>
               <div className="flex items-c">
                 {publicIpError ? (
-                  <span className="text-muted text-sm" style={{ color: 'var(--danger)' }}>加载失败</span>
+                  <span className="text-muted text-sm" style={{ color: 'var(--danger)' }}>{t('loadFailed')}</span>
                 ) : (
                   <span className="mono" style={{ fontSize: '0.8rem', fontWeight: 600 }}>{publicIpData?.ipv4 || '—'}</span>
                 )}
@@ -372,7 +420,7 @@ const Dashboard = () => {
           <h3 style={{ marginBottom: 12 }}>{t('realtimeNetworkSpeed')}</h3>
           {netError ? (
             <div className="text-center py-4 text-muted text-sm" style={{ color: 'var(--danger)', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              加载失败
+              {t('loadFailed')}
             </div>
           ) : (
             <>
@@ -412,7 +460,7 @@ const Dashboard = () => {
             logs={ddnsLogs}
             loading={loadingLogs['ddns']}
             error={categorizedLogsErrors['ddns']}
-            extra={ddnsLogs.length > 0 ? `上次同步: ${ddnsLogs[0]?.created_at || ''}` : null}
+            extra={ddnsLogs.length > 0 ? t('lastSync', { time: ddnsLogs[0]?.created_at || '' }) : null}
             emptyText={t('noRecords')}
           />
           <CollapsibleCard

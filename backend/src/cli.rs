@@ -3,7 +3,7 @@ use std::process;
 
 use clap::{Parser, Subcommand};
 
-const GITHUB_RELEASES: &str = "https://api.github.com/repos/akapzg/Unver/releases/latest";
+pub const GITHUB_RELEASES: &str = "https://api.github.com/repos/akapzg/Unver/releases/latest";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Parser)]
@@ -16,7 +16,7 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Start the Unver service (API + proxy engine)
-    Serve,
+    Start,
     /// Print version and exit
     Version,
     /// Self-update to the latest GitHub release
@@ -32,7 +32,7 @@ pub async fn run() -> anyhow::Result<bool> {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(Commands::Serve) => {
+        Some(Commands::Start) => {
             // Fall through to start service
             return Ok(false);
         }
@@ -82,10 +82,10 @@ async fn interactive_menu() -> anyhow::Result<()> {
     match choice {
         1 => {
             println!("Starting Unver service...");
-            // Replace current process with `unver serve`
+            // Replace current process with `unver start`
             let current_exe = std::env::current_exe()?;
             let err = process::Command::new(current_exe)
-                .arg("serve")
+                .arg("start")
                 .spawn();
             match err {
                 Ok(_) => println!("Service started in background."),
@@ -207,6 +207,82 @@ async fn self_update() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Programmatic self-update (no console output, for API use).
+pub async fn self_update_programmatic() -> anyhow::Result<()> {
+    let client = reqwest::Client::builder()
+        .user_agent("unver-updater")
+        .build()?;
+
+    let resp: serde_json::Value = client
+        .get(GITHUB_RELEASES)
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    let latest = resp["tag_name"]
+        .as_str()
+        .and_then(|t| t.strip_prefix('v'))
+        .unwrap_or("unknown");
+
+    // Skip if already latest (shouldn't happen since API already checked)
+    if latest == CURRENT_VERSION {
+        anyhow::bail!("Already up-to-date (v{})", CURRENT_VERSION);
+    }
+
+    let arch = detect_arch();
+    let asset_name = format!("unver-linux-{}.tar.gz", arch);
+
+    let assets = resp["assets"].as_array()
+        .ok_or_else(|| anyhow::anyhow!("No assets in release"))?;
+
+    let download_url = assets
+        .iter()
+        .find_map(|a| {
+            let name = a["name"].as_str()?;
+            if name == asset_name {
+                a["browser_download_url"].as_str()
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| anyhow::anyhow!("No asset matching {}", asset_name))?;
+
+    let bytes = client.get(download_url).send().await?.bytes().await?;
+
+    let tmpdir = tempfile::tempdir()?;
+    let tar_path = tmpdir.path().join("unver.tar.gz");
+    std::fs::write(&tar_path, &bytes)?;
+
+    let tar_file = std::fs::File::open(&tar_path)?;
+    let decoder = flate2::read::GzDecoder::new(tar_file);
+    let mut archive = tar::Archive::new(decoder);
+
+    let extract_dir = tmpdir.path().join("extracted");
+    std::fs::create_dir_all(&extract_dir)?;
+    archive.unpack(&extract_dir)?;
+
+    let new_binary = extract_dir.join("unver");
+    if !new_binary.exists() {
+        anyhow::bail!("Binary not found in archive");
+    }
+
+    let current_exe = std::env::current_exe()?;
+    let parent = current_exe.parent().unwrap();
+    let tmp_exe = parent.join(".unver.new");
+
+    std::fs::copy(&new_binary, &tmp_exe)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&tmp_exe, std::fs::Permissions::from_mode(0o755))?;
+    }
+    std::fs::rename(&tmp_exe, &current_exe)?;
+
+    Ok(())
+}
+
 fn detect_arch() -> &'static str {
     if cfg!(target_arch = "x86_64") {
         "amd64"
@@ -232,7 +308,7 @@ fn restart_service() -> anyhow::Result<()> {
 
     if pids.is_empty() {
         println!("No running Unver service found.");
-        println!("Start it with: unver serve");
+        println!("Start it with: unver start");
         return Ok(());
     }
 

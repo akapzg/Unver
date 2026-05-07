@@ -53,8 +53,12 @@ const Layout = () => {
   });
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+    try {
+      await logout();
+      navigate('/login');
+    } catch (_) {
+      navigate('/login');
+    }
   };
 
   const NavItems = [

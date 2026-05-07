@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmDialog';
 import { useTranslation } from 'react-i18next';
 import { Shield, Plus, RefreshCw, Trash2, Terminal, Upload, Download } from 'lucide-react';
 import { api } from '../api/client';
@@ -9,6 +10,7 @@ import { logStyle, logIcon } from '../utils/logHelpers';
 const Ssl = () => {
   const { t } = useTranslation();
   const { addToast } = useToast();
+  const { confirm } = useConfirm();
   const { settings, fetchSettings } = useStore();
   const [certs, setCerts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -167,7 +169,7 @@ const Ssl = () => {
   };
 
   const deleteCert = async (cert) => {
-    if (!window.confirm(t('confirmDelete'))) return;
+    if (!await confirm(t('confirmDelete'))) return;
     try {
       await api.deleteCertificate(cert.id);
       addToast(t('certRemoved'), 'info');
@@ -249,7 +251,7 @@ const Ssl = () => {
                       {isManual ? (
                         <span className="text-muted text-sm">{t('notApplicable')}</span>
                       ) : (
-                      <label className="toggle toggle-sm" aria-label={t('autoRenew')}>
+                      <label className="toggle" aria-label={t('autoRenew')}>
                         <input type="checkbox" checked={cert.auto_renew} onChange={() => toggleAutoRenew(cert)} />
                         <span className="toggle-slider"></span>
                       </label>
@@ -367,10 +369,14 @@ const Ssl = () => {
                 <select className="form-input" value={form.method} onChange={e => setForm({...form, method: e.target.value})}>
                   <option value="dns01">{t('dns01Cloudflare')}</option>
                 </select>
+                <p style={{fontSize:11,opacity:0.5,margin:'4px 0 0'}}>
+                  {t('dns01Hint')}
+                  {settings?.ddns_provider && <> · {settings.ddns_provider === 'aliyun' ? 'Aliyun' : 'Cloudflare'}</>}
+                </p>
               </div>
               <footer className="modal-footer">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>{t('cancel')}</button>
-                <button type="submit" className="btn btn-primary">{t('issueCert')}</button>
+                <button type="submit" className="btn btn-primary"><Shield size={16} />{t('issueCert')}</button>
               </footer>
             </form>
           </div>
@@ -399,7 +405,7 @@ const Ssl = () => {
               </div>
               <footer className="modal-footer">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowUpload(false)}>{t('cancel')}</button>
-                <button type="submit" className="btn btn-primary">{t('certUpload')}</button>
+                <button type="submit" className="btn btn-primary"><Upload size={16} />{t('certUpload')}</button>
               </footer>
             </form>
           </div>

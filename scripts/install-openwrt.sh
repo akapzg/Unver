@@ -69,7 +69,7 @@ DATA_DIR=/var/lib/unver
 
 start_service() {
     procd_open_instance
-    procd_set_param command "$PROG" "serve"
+    procd_set_param command "$PROG" "start"
     procd_set_param env DATABASE_URL="sqlite:$DATA_DIR/unver.db"
     procd_set_param env RUST_LOG="unver=info,tower_http=warn"
     procd_set_param limits nofile="65536 65536"

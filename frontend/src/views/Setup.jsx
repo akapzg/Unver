@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { api } from '../api/client';
 import { useTranslation } from 'react-i18next';
+import { UserPlus } from 'lucide-react';
 
 const Setup = () => {
   const [username, setUsername] = useState('');
@@ -92,7 +93,7 @@ const Setup = () => {
             />
           </div>
           <button type="submit" className="btn btn-primary w-full mt-4" disabled={loading} aria-label={t('setupButton')}>
-            {loading ? <div className="spinner" /> : t('setupButton')}
+            {loading ? <div className="spinner" /> : <><UserPlus size={16} />{t('setupButton')}</>}
           </button>
         </form>
       </div>

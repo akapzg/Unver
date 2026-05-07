@@ -71,8 +71,10 @@ export const useStore = create((set, get) => ({
   // ── Settings ──────────────────────────────────────────────────────────────
   settings: null,
   fetchSettings: async () => {
-    const { data } = await api.getSettings()
-    set({ settings: data })
+    try {
+      const { data } = await api.getSettings()
+      set({ settings: data })
+    } catch (_) {}
   },
   updateSettings: async (body) => {
     const { data } = await api.updateSettings(body)
@@ -98,7 +100,9 @@ export const useStore = create((set, get) => ({
   // ── Stats ─────────────────────────────────────────────────────────────────
   stats: null,
   fetchStats: async () => {
-    const { data } = await api.systemStats()
-    set({ stats: data })
+    try {
+      const { data } = await api.systemStats()
+      set({ stats: data })
+    } catch (_) {}
   },
 }))

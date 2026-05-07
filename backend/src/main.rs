@@ -27,7 +27,7 @@ static GLOBAL: MiMalloc = MiMalloc;
 #[tokio::main]
 async fn main() -> Result<()> {
     // CLI commands (version, update, restart, status, interactive menu) exit early.
-    // Returns false for "serve" — fall through to start the full service.
+    // Returns false for "start" — fall through to start the full service.
     if cli::run().await? {
         return Ok(());
     }

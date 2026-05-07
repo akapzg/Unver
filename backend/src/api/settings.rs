@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::path::Path;
 use axum::{extract::State, Extension, Json};
 use serde_json::json;
 
@@ -354,22 +355,15 @@ pub async fn restart_service(
     State(_state): State<Arc<AppState>>,
     Extension(_user): Extension<AuthUser>,
 ) -> AppResult<Json<serde_json::Value>> {
-    let in_container = std::path::Path::new("/.dockerenv").exists()
-        || std::fs::read_to_string("/proc/1/cgroup")
-            .map(|s| s.contains("docker") || s.contains("containerd"))
-            .unwrap_or(false);
-
     let exe = std::env::current_exe().unwrap_or_default();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        if in_container {
-            // In Docker: spawn replacement in background, then exit cleanly.
-            // The container runtime's restart policy handles the restart.
-            let _ = std::process::Command::new(&exe)
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .spawn();
-        }
+        // Spawn replacement before exiting (works on bare metal and in containers)
+        let _ = std::process::Command::new(&exe)
+            .arg("start")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
         std::process::exit(0);
     });
     Ok(Json(json!({"status": "restarting"})))
@@ -1118,4 +1112,86 @@ pub async fn list_logs_by_category(
     };
 
     Ok(Json(rows))
+}
+
+// ── Update Check ─────────────────────────────────────────────────────────
+
+/// GET /api/system/check-update
+pub async fn check_update() -> AppResult<Json<serde_json::Value>> {
+    let client = reqwest::Client::builder()
+        .user_agent("unver-updater")
+        .build()
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("{}", e)))?;
+
+    let resp: serde_json::Value = client
+        .get(crate::cli::GITHUB_RELEASES)
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to fetch releases: {e}")))?
+        .json()
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to parse response: {e}")))?;
+
+    let latest = resp["tag_name"]
+        .as_str()
+        .and_then(|t| t.strip_prefix('v'))
+        .unwrap_or("unknown");
+    let html_url = resp["html_url"]
+        .as_str()
+        .unwrap_or("https://github.com/akapzg/Unver/releases");
+    let current = env!("CARGO_PKG_VERSION");
+
+    let in_container = Path::new("/.dockerenv").exists()
+        || std::fs::read_to_string("/proc/1/cgroup")
+            .map(|s| s.contains("docker") || s.contains("containerd"))
+            .unwrap_or(false);
+
+    Ok(Json(json!({
+        "has_update": latest != current,
+        "current": current,
+        "latest": latest,
+        "html_url": html_url,
+        "mode": if in_container { "docker" } else { "bare_metal" },
+    })))
+}
+
+/// POST /api/system/update
+pub async fn perform_update(
+    State(state): State<Arc<AppState>>,
+    Extension(_user): Extension<AuthUser>,
+) -> AppResult<Json<serde_json::Value>> {
+    let in_container = Path::new("/.dockerenv").exists()
+        || std::fs::read_to_string("/proc/1/cgroup")
+            .map(|s| s.contains("docker") || s.contains("containerd"))
+            .unwrap_or(false);
+
+    if in_container {
+        return Ok(Json(json!({
+            "status": "manual_required",
+            "message": "Docker 容器内无法自动更新。请在宿主机执行：\ndocker pull ghcr.io/akapzg/unver:latest && docker compose up -d",
+        })));
+    }
+
+    // Bare metal: spawn self-update in background
+    let _state = state.clone();
+    tokio::spawn(async move {
+        if let Err(e) = crate::cli::self_update_programmatic().await {
+            tracing::error!("Self-update failed: {e}");
+        } else {
+            // Restart after update
+            let exe = std::env::current_exe().unwrap_or_default();
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            let _ = std::process::Command::new(&exe)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn();
+            std::process::exit(0);
+        }
+    });
+
+    Ok(Json(json!({
+        "status": "updating",
+        "message": "正在下载并安装更新，完成后将自动重启...",
+    })))
 }

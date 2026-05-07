@@ -69,7 +69,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=$INSTALL_DIR/unver serve
+ExecStart=$INSTALL_DIR/unver start
 WorkingDirectory=$DATA_DIR
 Environment=DATABASE_URL=sqlite:$DATA_DIR/unver.db
 Environment=RUST_LOG=unver=info,tower_http=warn
@@ -84,7 +84,7 @@ EOF
     sudo systemctl enable unver
     log "Service installed. Start with: sudo systemctl start unver"
 else
-    log "No systemd detected. Run manually: unver serve"
+    log "No systemd detected. Run manually: unver start"
 fi
 
 rm -rf "$TMPDIR"

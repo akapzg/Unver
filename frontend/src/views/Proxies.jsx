@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../components/Toast';
-import { Plus, Search, Trash2, Edit3, ExternalLink, Globe, Shield, ChevronDown, ChevronUp, Copy } from 'lucide-react';
-import { api } from '../api/client';
+import { useConfirm } from '../components/ConfirmDialog';
+import { Plus, Trash2, Edit3, ExternalLink, Globe, Shield, ChevronDown, ChevronUp, Copy, Save, Check } from 'lucide-react';
 import client from '../api/client';
 
 const Proxies = () => {
   const { t } = useTranslation();
   const { addToast } = useToast();
+  const { confirm } = useConfirm();
   const { fetchProxies, createProxy, updateProxy, deleteProxy } = useStore();
   const [portGroups, setPortGroups] = useState([]);
   const [expanded, setExpanded] = useState({});
@@ -26,18 +27,18 @@ const Proxies = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [pgRes] = await Promise.all([
-        client.get('/port-groups'),
-        fetchProxies()
-      ]);
+      const pgRes = await client.get('/port-groups');
+      await fetchProxies();
+
       const groups = pgRes.data || [];
-      // Fetch rules for each group
-      const groupsWithRules = await Promise.all(groups.map(async (g) => {
-        try {
-          const rRes = await client.get(`/port-groups/${g.id}/rules`);
-          return { ...g, rules: rRes.data || [] };
-        } catch { return { ...g, rules: [] }; }
+      const allProxies = useStore.getState().proxies || [];
+
+      // Group proxies by port_group_id instead of broken /port-groups/:id/rules
+      const groupsWithRules = groups.map(g => ({
+        ...g,
+        rules: allProxies.filter(p => p.port_group_id === g.id)
       }));
+
       setPortGroups(groupsWithRules);
       // Auto-expand all
       const exp = {};
@@ -80,13 +81,18 @@ const Proxies = () => {
       setShowPgModal(false);
       loadData();
     } catch (err) {
-      const msg = err?.response?.data?.error || err?.response?.data?.message || err?.response?.data || err?.message || t('failed');
-      addToast(typeof msg === 'string' ? msg : JSON.stringify(msg), 'error');
+      const raw = err?.response?.data?.error || err?.response?.data?.message || err?.response?.data || err?.message || '';
+      let msg = raw;
+      const m = typeof raw === 'string' ? raw.match(/^Port (\d+) is already in use$/) : null;
+      if (m) msg = t('portAlreadyInUse', { port: m[1] });
+      const m2 = typeof raw === 'string' ? raw.match(/^Port (\d+) is occupied by another process$/) : null;
+      if (m2) msg = t('portOccupied', { port: m2[1] });
+      addToast(msg || t('failed'), 'error');
     }
   };
 
   const handlePgDelete = async (id) => {
-    if (!window.confirm(t('deletePortGroupConfirm'))) return;
+    if (!await confirm(t('deletePortGroupConfirm'))) return;
     try {
       await client.delete(`/port-groups/${id}`);
       addToast(t('portGroupDeleted'), 'success');
@@ -119,16 +125,25 @@ const Proxies = () => {
       setShowRuleModal(false);
       loadData();
     } catch (err) {
-      const msg = err?.response?.data?.error || err?.response?.data?.message || err?.response?.data || err?.message || t('failed');
-      addToast(typeof msg === 'string' ? msg : JSON.stringify(msg), 'error');
+      const raw = err?.response?.data?.error || err?.response?.data?.message || err?.response?.data || err?.message || '';
+      let msg = raw;
+      const m = typeof raw === 'string' ? raw.match(/^Port (\d+) is already in use$/) : null;
+      if (m) msg = t('portAlreadyInUse', { port: m[1] });
+      const m2 = typeof raw === 'string' ? raw.match(/^Port (\d+) is occupied by another process$/) : null;
+      if (m2) msg = t('portOccupied', { port: m2[1] });
+      addToast(msg || t('failed'), 'error');
     }
   };
 
   const handleRuleDelete = async (id) => {
-    if (!window.confirm(t('confirmDelete'))) return;
-    await deleteProxy(id);
-    addToast(t('proxyDeleted'), 'success');
-    loadData();
+    if (!await confirm(t('confirmDelete'))) return;
+    try {
+      await deleteProxy(id);
+      addToast(t('proxyDeleted'), 'success');
+      loadData();
+    } catch (_) {
+      addToast(t('failed'), 'error');
+    }
   };
 
   const toggleRuleStatus = async (rule) => {
@@ -181,7 +196,7 @@ const Proxies = () => {
     const s = search.toLowerCase();
     return g.name.toLowerCase().includes(s) ||
       String(g.listen_port).includes(s) ||
-      (g.rules || []).some(r => r.domain.toLowerCase().includes(s) || r.name.toLowerCase().includes(s));
+      (Array.isArray(g.rules) ? g.rules : []).some(r => r.domain.toLowerCase().includes(s) || r.name.toLowerCase().includes(s));
   });
 
   return (
@@ -215,10 +230,10 @@ const Proxies = () => {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
           {filteredGroups.map(pg => (
-            <div key={pg.id} className="glass-panel" style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+            <div key={pg.id} className="glass-panel" style={{ borderRadius: 'var(--radius-md)' }}>
               {/* Group Header */}
               <div
-                className="flex items-c justify-b"
+                className="flex items-c justify-b proxy-group-header"
                 style={{ padding: '12px 16px', cursor: 'pointer', userSelect: 'none' }}
                 onClick={() => toggleExpand(pg.id)}
               >
@@ -235,7 +250,7 @@ const Proxies = () => {
                         fontSize: '0.8rem',
                         fontWeight: 700,
                       }}>{pg.listen_port}</span>
-                      <label className="toggle toggle-sm" aria-label={pg.enabled ? t('disable') : t('enable')} onClick={e => e.stopPropagation()}>
+                      <label className="toggle" aria-label={pg.enabled ? t('disable') : t('enable')} onClick={e => e.stopPropagation()}>
                         <input type="checkbox" checked={pg.enabled} onChange={() => toggleGroupStatus(pg)} />
                         <span className="toggle-slider"></span>
                       </label>
@@ -245,7 +260,7 @@ const Proxies = () => {
                 </div>
                 <div className="flex items-c gap-2">
                   <div className="flex items-c gap-2" onClick={e => e.stopPropagation()}>
-                  <button className="btn btn-primary btn-sm" onClick={() => openRuleModal(pg.id)}>
+                  <button className="btn btn-primary" onClick={() => openRuleModal(pg.id)}>
                     <Plus size={14} /> {t('addSubRule')}
                   </button>
                   <button className="btn btn-ghost btn-icon" onClick={() => openPgModal(pg)}><Edit3 size={14} /></button>
@@ -258,7 +273,7 @@ const Proxies = () => {
               {/* Rules Table */}
               {expanded[pg.id] && (
                 <div style={{ borderTop: '1px solid var(--glass-border)' }}>
-                  {(pg.rules || []).length === 0 ? (
+                  {(Array.isArray(pg.rules) ? pg.rules : []).length === 0 ? (
                     <div className="text-center py-4 text-muted text-sm">{t('noRulesInGroup')}</div>
                   ) : (
                     <div className="table-wrap">
@@ -278,10 +293,8 @@ const Proxies = () => {
                         <tbody>
                           {pg.rules.map(rule => (
                             <tr key={rule.id} className={!pg.enabled ? 'opacity-50' : ''}>
-                              <td>
-                                <span className={`badge ${rule.rule_type === 'redirect' ? 'badge-accent' : rule.rule_type === 'tcp' ? 'badge-info' : 'badge-success'}`}>
-                                  {rule.rule_type === 'redirect' ? t('ruleTypeRedirect') : rule.rule_type === 'tcp' ? t('ruleTypeTcp') : t('ruleTypeProxy')}
-                                </span>
+                              <td className="text-sm">
+                                {rule.rule_type === 'redirect' ? t('ruleTypeRedirect') : rule.rule_type === 'tcp' ? t('ruleTypeTcp') : t('ruleTypeProxy')}
                               </td>
                               <td><div className="font-600">{rule.name}</div></td>
                               <td>
@@ -298,7 +311,7 @@ const Proxies = () => {
                                 </span>
                               </td>
                               <td>
-                                <label className="toggle toggle-sm" aria-label={rule.enabled ? t('active') : t('disabled')}>
+                                <label className="toggle" aria-label={rule.enabled ? t('active') : t('disabled')}>
                                   <input type="checkbox" checked={rule.enabled} onChange={() => toggleRuleStatus(rule)} disabled={!pg.enabled} />
                                   <span className="toggle-slider"></span>
                                 </label>
@@ -308,8 +321,8 @@ const Proxies = () => {
                               </td>
                               <td>
                                 <div className="flex items-c gap-2" style={{ justifyContent: 'center' }}>
-                                  <button className="btn btn-ghost btn-icon" onClick={() => openRuleModal(pg.id, rule)} disabled={!pg.enabled}><Edit3 size={16} /></button>
-                                  <button className="btn btn-ghost btn-icon" onClick={() => handleRuleDelete(rule.id)} disabled={!pg.enabled}><Trash2 size={16} /></button>
+                                  <button className="btn btn-ghost btn-icon" onClick={() => openRuleModal(pg.id, rule)} disabled={!pg.enabled}><Edit3 size={14} /></button>
+                                  <button className="btn btn-ghost btn-icon" onClick={() => handleRuleDelete(rule.id)} disabled={!pg.enabled}><Trash2 size={14} /></button>
                                 </div>
                               </td>
                             </tr>
@@ -341,7 +354,7 @@ const Proxies = () => {
               <div className="form-group">
                 <label className="form-label">{t('listenPort')}</label>
                 <input className="form-input" type="number" min={1} max={65535} value={pgForm.listen_port}
-                  onChange={e => setPgForm({ ...pgForm, listen_port: parseInt(e.target.value) || 443 })} required />
+                  onChange={e => setPgForm({ ...pgForm, listen_port: e.target.value === '' ? '' : parseInt(e.target.value) })} required />
               </div>
               <div className="form-group">
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
@@ -361,7 +374,7 @@ const Proxies = () => {
               </div>
               <footer className="modal-footer">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowPgModal(false)}>{t('cancel')}</button>
-                <button type="submit" className="btn btn-primary">{editingPgId ? t('update') : t('create')}</button>
+                <button type="submit" className="btn btn-primary">{editingPgId ? <><Check size={16} />{t('update')}</> : <><Plus size={16} />{t('create')}</>}</button>
               </footer>
             </form>
           </div>
@@ -404,7 +417,7 @@ const Proxies = () => {
                   </div>
                   <div className="form-toggle">
                     <span className="text-muted text-sm">{t('enableSsl')}</span>
-                    <label className="toggle">
+                    <label className="toggle" aria-label={t('enableSsl')}>
                       <input type="checkbox" checked={ruleForm.ssl_enabled}
                         onChange={e => setRuleForm({ ...ruleForm, ssl_enabled: e.target.checked })} />
                       <span className="toggle-slider"></span>
@@ -423,10 +436,10 @@ const Proxies = () => {
                     <label className="form-label">{t('statusCode')}</label>
                     <select className="form-input" value={ruleForm.redirect_code || 301}
                       onChange={e => setRuleForm({ ...ruleForm, redirect_code: parseInt(e.target.value) })}>
-                      <option value={301}>301 永久重定向</option>
-                      <option value={302}>302 临时重定向</option>
-                      <option value={307}>307 临时重定向 (保持方法)</option>
-                      <option value={308}>308 永久重定向 (保持方法)</option>
+                      <option value={301}>{t('redirect301')}</option>
+                      <option value={302}>{t('redirect302')}</option>
+                      <option value={307}>{t('redirect307')}</option>
+                      <option value={308}>{t('redirect308')}</option>
                     </select>
                   </div>
                 </>
@@ -440,7 +453,7 @@ const Proxies = () => {
               )}
               <footer className="modal-footer mt-2">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowRuleModal(false)}>{t('cancel')}</button>
-                <button type="submit" className="btn btn-primary">{editingRuleId ? t('updateProxy') : t('save')}</button>
+                <button type="submit" className="btn btn-primary">{editingRuleId ? <><Check size={16} />{t('updateProxy')}</> : <><Save size={16} />{t('save')}</>}</button>
               </footer>
             </form>
           </div>

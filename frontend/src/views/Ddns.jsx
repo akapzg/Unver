@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Globe, Save, Zap, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmDialog';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import client from '../api/client';
@@ -27,7 +28,7 @@ const ALL_PROVIDER_KEYS = Object.values(PROVIDER_FIELDS).flat().map(f => f.key);
 // Provider display names (user-visible labels)
 const PROVIDER_LABELS = {
   cloudflare: 'Cloudflare',
-  aliyun:     'Aliyun (阿里云)',
+  aliyun:     'Aliyun',
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -51,6 +52,7 @@ const clearCredentials = (cfg) => {
 const Ddns = () => {
   const { t } = useTranslation();
   const { addToast } = useToast();
+  const { confirm } = useConfirm();
   const { settings, fetchSettings, updateSettings } = useStore();
   const [configs, setConfigs] = useState([makeDefaultConfig()]);
   const [domainStatuses, setDomainStatuses] = useState([]);
@@ -105,7 +107,7 @@ const Ddns = () => {
   };
 
   const removeConfig = async (id, domainsStr) => {
-    if (!window.confirm(t('confirmDeleteDdns'))) return;
+    if (!await confirm(t('confirmDeleteDdns'))) return;
     const domains = (domainsStr || '').split(/[\n,]/).map(d => d.trim()).filter(Boolean);
     for (const domain of domains) {
       try {
@@ -154,7 +156,7 @@ const Ddns = () => {
   };
 
   const deleteDomain = async (domain) => {
-    if (!window.confirm(t('confirmDeleteDomain', { domain }))) return;
+    if (!await confirm(t('confirmDeleteDomain', { domain }))) return;
     try {
       await api.ddnsDeleteDomain(domain);
       addToast(t('domainDeleted', { domain }), 'success');
@@ -230,7 +232,7 @@ const Ddns = () => {
               <Zap size={16} />
               <span>{testRunning ? t('testConnecting') : t('testConnectionShort')}</span>
             </button>
-            <button className="btn btn-primary" onClick={addConfig} aria-label="Add DDNS">
+            <button className="btn btn-primary" onClick={addConfig} aria-label={t('addDdns')}>
               <Plus size={18} />
               <span>{t('addDdns')}</span>
             </button>
@@ -254,7 +256,7 @@ const Ddns = () => {
               {cfg.isNew && <span className="badge" style={{ background: 'rgba(108,142,255,0.2)', color: 'var(--accent)', fontSize: '0.65rem' }}>{t('newBadge')}</span>}
             </div>
             {configs.length > 1 && idx > 0 && (
-              <button className="btn btn-ghost btn-icon btn-sm" onClick={() => removeConfig(cfg.id, cfg.ddns_domains)} aria-label="Delete">
+              <button className="btn btn-ghost btn-icon btn-sm" onClick={() => removeConfig(cfg.id, cfg.ddns_domains)} aria-label={t('delete')}>
                 <Trash2 size={14} />
               </button>
             )}
@@ -351,7 +353,7 @@ const Ddns = () => {
                         <td style={{ textAlign: 'center', verticalAlign: 'middle' }}><span className="badge badge-success">{d.ipv6 ? 'A/AAAA' : 'A'}</span></td>
                         <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                            <label className="toggle toggle-sm" aria-label={d.domain}>
+                            <label className="toggle" aria-label={d.domain}>
                               <input type="checkbox" checked={d.enabled} onChange={() => toggleDomain(d.domain)} />
                               <span className="toggle-slider"></span>
                             </label>

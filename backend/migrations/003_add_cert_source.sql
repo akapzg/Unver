@@ -1,4 +1,5 @@
 -- Unver Database Schema, Migration 003
--- Adds source column to certificates (acme/manual) and sets existing to 'acme'
+-- cert source column is now in 001_init.sql
+-- This migration exists only for version history.
 
-ALTER TABLE certificates ADD COLUMN source TEXT NOT NULL DEFAULT 'acme';
+SELECT 1;
