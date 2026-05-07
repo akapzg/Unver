@@ -57,11 +57,13 @@ pub trait DnsProvider: Send + Sync {
 pub fn get_provider(name: &str) -> Option<Box<dyn DnsProvider>> {
     match name {
         "cloudflare" => Some(Box::new(cloudflare::CloudflareProvider)),
+        "aliyun" => Some(Box::new(aliyun::AliyunProvider)),
         _ => None,
     }
 }
 
 pub mod cloudflare;
+pub mod aliyun;
 
 #[cfg(test)]
 mod tests {
@@ -169,8 +171,12 @@ mod tests {
     }
 
     #[test]
+    fn test_get_provider_aliyun() {
+        assert!(get_provider("aliyun").is_some());
+    }
+
+    #[test]
     fn test_get_provider_unknown_returns_none() {
-        assert!(get_provider("aliyun").is_none());
         assert!(get_provider("").is_none());
         assert!(get_provider("nonexistent").is_none());
     }

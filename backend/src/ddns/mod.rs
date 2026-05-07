@@ -36,8 +36,13 @@ async fn update_ddns(state: &Arc<AppState>) -> AppResult<()> {
     let provider = providers::get_provider(&provider_name)
         .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Unknown DDNS provider: {provider_name}")))?;
 
-    let token = get_secret_setting(&state.db, "ddns_cf_token").await?;
-    if token.is_empty() {
+    // Check provider-specific credentials
+    let has_creds = match provider_name.as_str() {
+        "cloudflare" => !get_secret_setting(&state.db, "ddns_cf_token").await.unwrap_or_default().is_empty(),
+        "aliyun" => !get_secret_setting(&state.db, "ddns_aliyun_access_key_id").await.unwrap_or_default().is_empty(),
+        _ => false,
+    };
+    if !has_creds {
         return Ok(());
     }
 
