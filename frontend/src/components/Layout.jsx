@@ -71,7 +71,7 @@ const Layout = () => {
 
   return (
     <div className="app-layout">
-      <div className={`mobile-top-bar ${topBarHidden ? 'hidden' : ''}`}>
+      <div className={`mobile-top-bar ${topBarHidden ? 'collapsed' : ''}`}>
         <span className="mobile-top-logo"><img src="/favicon.png" alt="Unver" style={{ height: 24, width: 'auto' }} /></span>
         <div className="mobile-top-actions">
           <a href="https://github.com/unver" target="_blank" rel="noreferrer" className="sidebar-ctrl-btn" title="GitHub" aria-label="GitHub">

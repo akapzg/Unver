@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore';
 import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmDialog';
 import { useTranslation } from 'react-i18next';
-import { Shield, Plus, RefreshCw, Trash2, Terminal, Upload, Download } from 'lucide-react';
+import { Shield, Plus, RefreshCw, Trash2, Terminal, Upload, Download, X } from 'lucide-react';
 import { api } from '../api/client';
 import { logStyle, logIcon } from '../utils/logHelpers';
 
@@ -336,6 +336,7 @@ const Ssl = () => {
                   {issueStatus === 'running' && <span className="spinner" style={{ width: 14, height: 14, display: 'inline-block', marginLeft: 8, verticalAlign: 'middle' }} />}
                 </span>
                 <button className="btn btn-ghost btn-sm" onClick={closeIssueLog}>
+                  <X size={16} />
                   {t('close')}
                 </button>
               </div>
@@ -375,7 +376,7 @@ const Ssl = () => {
                 </p>
               </div>
               <footer className="modal-footer">
-                <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>{t('cancel')}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}><X size={16} />{t('cancel')}</button>
                 <button type="submit" className="btn btn-primary"><Shield size={16} />{t('issueCert')}</button>
               </footer>
             </form>
@@ -404,7 +405,7 @@ const Ssl = () => {
                 <textarea className="form-input mono" rows={6} value={uploadForm.key_pem} onChange={e => setUploadForm({...uploadForm, key_pem: e.target.value})} placeholder="-----BEGIN PRIVATE KEY-----&#10;..." required style={{fontSize:11,resize:'vertical'}} />
               </div>
               <footer className="modal-footer">
-                <button type="button" className="btn btn-ghost" onClick={() => setShowUpload(false)}>{t('cancel')}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowUpload(false)}><X size={16} />{t('cancel')}</button>
                 <button type="submit" className="btn btn-primary"><Upload size={16} />{t('certUpload')}</button>
               </footer>
             </form>

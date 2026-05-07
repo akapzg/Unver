@@ -144,6 +144,7 @@ a:hover { opacity: 0.85; }
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .mobile-top-bar.hidden { transform: translateY(-100%); }
+.mobile-top-bar.collapsed { transform: translateY(-100%); }
 [data-theme="light"] .mobile-top-bar { background: rgba(245,245,248,0.9); }
 .mobile-top-logo { font-size: 1.2rem; font-weight: 700; letter-spacing: 0.1em; }
 .mobile-top-actions { display: flex; gap: 4px; }
@@ -333,7 +334,7 @@ select.form-input option { background: #12121f; color: var(--text-1); }
 .text-right { text-align: right; }
 .w-full { width: 100%; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hidden { display: none !important; }
+.dn { display: none !important; }
 .sticky { position: sticky; top: 0; z-index: 10; }
 
 .gap-2 { gap: 8px; }
@@ -512,6 +513,7 @@ select.form-input option { background: #12121f; color: var(--text-1); }
 .collapsible-body {
   margin-top: 10px; max-height: 240px; overflow-y: auto;
   border-top: 1px solid var(--glass-border); padding-top: 8px;
+  font-size: 14px;
 }
 
 .log-line {

@@ -23,9 +23,13 @@ export const useStore = create((set, get) => ({
   },
 
   login: async (username, password) => {
-    const { data } = await api.login({ username, password })
-    localStorage.setItem('access_token', data.access_token)
-    set({ isAuthenticated: true })
+    try {
+      const { data } = await api.login({ username, password })
+      localStorage.setItem('access_token', data.access_token)
+      set({ isAuthenticated: true })
+    } catch (e) {
+      throw e
+    }
   },
 
   logout: async () => {
@@ -52,20 +56,32 @@ export const useStore = create((set, get) => ({
   },
 
   createProxy: async (body) => {
-    const { data } = await api.createProxy(body)
-    set(s => ({ proxies: [data, ...s.proxies] }))
-    return data
+    try {
+      const { data } = await api.createProxy(body)
+      set(s => ({ proxies: [data, ...s.proxies] }))
+      return data
+    } catch (e) {
+      throw e
+    }
   },
 
   updateProxy: async (id, body) => {
-    const { data } = await api.updateProxy(id, body)
-    set(s => ({ proxies: s.proxies.map(p => (p.id === id ? data : p)) }))
-    return data
+    try {
+      const { data } = await api.updateProxy(id, body)
+      set(s => ({ proxies: s.proxies.map(p => (p.id === id ? data : p)) }))
+      return data
+    } catch (e) {
+      throw e
+    }
   },
 
   deleteProxy: async (id) => {
-    await api.deleteProxy(id)
-    set(s => ({ proxies: s.proxies.filter(p => p.id !== id) }))
+    try {
+      await api.deleteProxy(id)
+      set(s => ({ proxies: s.proxies.filter(p => p.id !== id) }))
+    } catch (e) {
+      throw e
+    }
   },
 
   // ── Settings ──────────────────────────────────────────────────────────────
@@ -77,24 +93,38 @@ export const useStore = create((set, get) => ({
     } catch (_) {}
   },
   updateSettings: async (body) => {
-    const { data } = await api.updateSettings(body)
-    set({ settings: data })
+    try {
+      const { data } = await api.updateSettings(body)
+      set({ settings: data })
+    } catch (e) {
+      throw e
+    }
   },
 
   // ── API Keys ──────────────────────────────────────────────────────────────
   apiKeys: [],
   fetchApiKeys: async () => {
-    const { data } = await api.listApiKeys()
-    set({ apiKeys: data })
+    try {
+      const { data } = await api.listApiKeys()
+      set({ apiKeys: data })
+    } catch (_) {}
   },
   createApiKey: async (name) => {
-    const { data } = await api.createApiKey({ name })
-    set(s => ({ apiKeys: [data, ...s.apiKeys] }))
-    return data // contains the raw key — show to user ONCE
+    try {
+      const { data } = await api.createApiKey({ name })
+      set(s => ({ apiKeys: [data, ...s.apiKeys] }))
+      return data // contains the raw key — show to user ONCE
+    } catch (e) {
+      throw e
+    }
   },
   deleteApiKey: async (id) => {
-    await api.deleteApiKey(id)
-    set(s => ({ apiKeys: s.apiKeys.filter(k => k.id !== id) }))
+    try {
+      await api.deleteApiKey(id)
+      set(s => ({ apiKeys: s.apiKeys.filter(k => k.id !== id) }))
+    } catch (e) {
+      throw e
+    }
   },
 
   // ── Stats ─────────────────────────────────────────────────────────────────

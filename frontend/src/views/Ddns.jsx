@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, Save, Zap, Plus, Trash2 } from 'lucide-react';
+import { Globe, Save, Zap, Plus, Trash2, X, Search } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmDialog';
@@ -305,6 +305,7 @@ const Ddns = () => {
                         onClick={() => handleFetchZones(cfg)}
                         disabled={fetchingZones || !(cfg.ddns_cf_token)}
                         type="button" style={{whiteSpace:'nowrap'}}>
+                        <Search size={14} />
                         {fetchingZones ? t('fetching') : t('fetchZones')}
                       </button>
                     </div>
@@ -408,6 +409,7 @@ const Ddns = () => {
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
                 <button className="btn btn-ghost btn-sm" onClick={() => setShowTestModal(false)} disabled={testRunning}>
+                  <X size={16} />
                   {t('close')}
                 </button>
               </div>

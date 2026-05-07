@@ -76,8 +76,12 @@ const Settings = () => {
 
   const handleDeleteKey = async (key) => {
     if (!await confirm(t('confirmDelete'))) return;
-    deleteApiKey(key.id);
-    setApiKeyFull('');
+    try {
+      deleteApiKey(key.id);
+      setApiKeyFull('');
+    } catch {
+      addToast(t('failed'), 'error');
+    }
   };
 
   // ── Password ──
@@ -240,7 +244,7 @@ const Settings = () => {
                 <Save size={16} />
                 <span>{t('save')}</span>
               </button>
-              <button className="btn btn-danger" onClick={handleRestart}>
+              <button className="btn btn-ghost" onClick={handleRestart}>
                 <RefreshCw size={16} />
                 <span>{t('restart')}</span>
               </button>

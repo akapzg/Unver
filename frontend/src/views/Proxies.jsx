@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmDialog';
-import { Plus, Trash2, Edit3, ExternalLink, Globe, Shield, ChevronDown, ChevronUp, Copy, Save, Check } from 'lucide-react';
+import { Plus, Trash2, Edit3, ExternalLink, Globe, ChevronDown, ChevronUp, Copy, Save, Check, X } from 'lucide-react';
 import client from '../api/client';
 
 const Proxies = () => {
@@ -147,8 +147,12 @@ const Proxies = () => {
   };
 
   const toggleRuleStatus = async (rule) => {
-    await updateProxy(rule.id, { enabled: !rule.enabled });
-    loadData();
+    try {
+      await updateProxy(rule.id, { enabled: !rule.enabled });
+      loadData();
+    } catch {
+      addToast(t('failed'), 'error');
+    }
   };
 
   const toggleGroupStatus = async (pg) => {
@@ -373,7 +377,7 @@ const Proxies = () => {
                 <p className="form-hint" style={{ marginTop: 4 }}>{t('skipTlsVerifyDesc')}</p>
               </div>
               <footer className="modal-footer">
-                <button type="button" className="btn btn-ghost" onClick={() => setShowPgModal(false)}>{t('cancel')}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowPgModal(false)}><X size={16} />{t('cancel')}</button>
                 <button type="submit" className="btn btn-primary">{editingPgId ? <><Check size={16} />{t('update')}</> : <><Plus size={16} />{t('create')}</>}</button>
               </footer>
             </form>
@@ -435,7 +439,7 @@ const Proxies = () => {
                   <div className="form-group">
                     <label className="form-label">{t('statusCode')}</label>
                     <select className="form-input" value={ruleForm.redirect_code || 301}
-                      onChange={e => setRuleForm({ ...ruleForm, redirect_code: parseInt(e.target.value) })}>
+                      onChange={e => setRuleForm({ ...ruleForm, redirect_code: e.target.value === '' ? '' : parseInt(e.target.value) })}>
                       <option value={301}>{t('redirect301')}</option>
                       <option value={302}>{t('redirect302')}</option>
                       <option value={307}>{t('redirect307')}</option>
@@ -452,7 +456,7 @@ const Proxies = () => {
                 </div>
               )}
               <footer className="modal-footer mt-2">
-                <button type="button" className="btn btn-ghost" onClick={() => setShowRuleModal(false)}>{t('cancel')}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowRuleModal(false)}><X size={16} />{t('cancel')}</button>
                 <button type="submit" className="btn btn-primary">{editingRuleId ? <><Check size={16} />{t('updateProxy')}</> : <><Save size={16} />{t('save')}</>}</button>
               </footer>
             </form>

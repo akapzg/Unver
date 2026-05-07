@@ -15,6 +15,7 @@ const resources = {
       download: '下载',
       upload: '上传',
       totalReceived: '总接收',
+      totalSent: '总发送',
       memory: '内存',
       uptime: '已持续',
       dbSize: '存储占用',
