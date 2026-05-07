@@ -15,13 +15,14 @@ WORKDIR /app/backend
 
 ARG TARGETPLATFORM
 RUN case "${TARGETPLATFORM}" in \
-      "linux/amd64")   RUST_TARGET="x86_64-unknown-linux-gnu" ;; \
-      "linux/arm64")   RUST_TARGET="aarch64-unknown-linux-gnu" ;; \
-      "linux/arm/v7")  RUST_TARGET="armv7-unknown-linux-gnueabihf" ;; \
+      "linux/amd64")   RUST_TARGET="x86_64-unknown-linux-gnu" ; LINKER="" ;; \
+      "linux/arm64")   RUST_TARGET="aarch64-unknown-linux-gnu" ; LINKER="aarch64-linux-gnu-gcc" ;; \
+      "linux/arm/v7")  RUST_TARGET="armv7-unknown-linux-gnueabihf" ; LINKER="arm-linux-gnueabihf-gcc" ;; \
       *)               echo "Unsupported platform: ${TARGETPLATFORM}" && exit 1 ;; \
     esac && \
     rustup target add "${RUST_TARGET}" && \
-    echo "RUST_TARGET=${RUST_TARGET}" > /tmp/target.env
+    echo "RUST_TARGET=${RUST_TARGET}" > /tmp/target.env && \
+    [ -n "${LINKER}" ] && echo "CARGO_TARGET_$(echo ${RUST_TARGET} | tr '[:lower:]-' '[:upper:]_')_LINKER=${LINKER}" >> /tmp/target.env || true
 
 # Install target-specific cross-compilation deps (linker only; vendored openssl handles TLS)
 RUN case "${TARGETPLATFORM}" in \
