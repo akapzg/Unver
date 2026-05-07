@@ -66,7 +66,7 @@ Unver/
 │   └── vite.config.js
 ├── docker-compose.yml          # Dev environment (local build)
 ├── docker-compose.prod.yml     # Production environment (pull image)
-├── Dockerfile                  # Multi-arch build (amd64/arm64/armv7)
+├── Dockerfile                  # Multi-arch build (amd64/arm64)
 ├── .github/workflows/
 │   └── release.yml             # Release auto-build + publish to public repo
 ├── scripts/
@@ -164,7 +164,7 @@ docker compose build && docker compose up -d
 
 # Multi-arch (requires buildx)
 docker buildx create --use --name multiarch
-docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 -t unver:latest .
+docker buildx build --platform linux/amd64,linux/arm64 -t unver:latest .
 ```
 
 ---

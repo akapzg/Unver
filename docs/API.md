@@ -397,15 +397,23 @@ List all certificates.
 [
   {
     "id": "uuid",
-    "domains": ["example.com", "*.example.com"],
-    "issuer": "Let's Encrypt",
-    "not_before": "2025-01-01T00:00:00Z",
-    "not_after": "2025-04-01T00:00:00Z",
-    "status": "valid",
-    "auto_renew": true
+    "domain": "example.com",
+    "expires_at": "2025-04-01T00:00:00Z",
+    "auto_renew": true,
+    "source": "acme",
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z"
   }
 ]
 ```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Certificate UUID |
+| `domain` | string | Domain name |
+| `expires_at` | string | Expiration time |
+| `auto_renew` | bool | Auto-renew enabled |
+| `source` | string | `"acme"` (Let's Encrypt) or `"manual"` (uploaded) |
 
 ### POST /api/certificates
 

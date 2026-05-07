@@ -9,7 +9,7 @@
 ## ✨ Features
 
 - ✅ **Auto SSL** — Let's Encrypt ACME DNS-01, auto issuance & renewal, SNI dynamic matching
-- ✅ **Cross-Platform** — x86_64, ARM64, ARMv7, runs on OpenWrt routers
+- ✅ **Cross-Platform** — x86_64, ARM64, runs on OpenWrt routers (musl static build)
 - ✅ **Modern Web UI** — React dark theme, CN/EN i18n, real-time traffic, categorized logs
 - ✅ **Docker One-Click** — single command deploy, persistent data, auto-restart
 - ✅ **DDNS Auto-Sync** — Cloudflare / Alibaba Cloud, auto-update on IP change

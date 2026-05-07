@@ -62,7 +62,7 @@ Unver/
 │   └── vite.config.js
 ├── docker-compose.yml          # 开发环境（本地 build）
 ├── docker-compose.prod.yml     # 生产环境（拉镜像）
-├── Dockerfile                  # 多架构构建（amd64/arm64/armv7）
+├── Dockerfile                  # 多架构构建（amd64/arm64）
 ├── .github/workflows/
 │   └── release.yml             # Release 自动构建 + 发布到公开仓库
 ├── scripts/
@@ -161,7 +161,7 @@ docker compose build && docker compose up -d
 
 # 多架构（需要 buildx）
 docker buildx create --use --name multiarch
-docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 -t unver:latest .
+docker buildx build --platform linux/amd64,linux/arm64 -t unver:latest .
 ```
 
 ---

@@ -1,9 +1,9 @@
 # Unver — Lightweight Reverse Proxy Manager
-# Multi-arch: amd64 · arm64 · arm/v7 (OpenWRT, Raspberry Pi)
+# Multi-arch: amd64 · arm64
 #
 # Build once, push to registry:
 #   docker buildx create --use --name multiarch
-#   docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 \
+#   docker buildx build --platform linux/amd64,linux/arm64 \
 #       -t unver:latest --push .
 #
 # Or build single-arch (current machine):

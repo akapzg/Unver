@@ -397,15 +397,23 @@ Authorization: Bearer <token>
 [
   {
     "id": "uuid",
-    "domains": ["example.com", "*.example.com"],
-    "issuer": "Let's Encrypt",
-    "not_before": "2025-01-01T00:00:00Z",
-    "not_after": "2025-04-01T00:00:00Z",
-    "status": "valid",
-    "auto_renew": true
+    "domain": "example.com",
+    "expires_at": "2025-04-01T00:00:00Z",
+    "auto_renew": true,
+    "source": "acme",
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-01T00:00:00Z"
   }
 ]
 ```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | string | 证书 UUID |
+| `domain` | string | 证书域名 |
+| `expires_at` | string | 过期时间 |
+| `auto_renew` | bool | 是否自动续签 |
+| `source` | string | 来源：`"acme"`（Let's Encrypt）或 `"manual"`（手动上传） |
 
 ### POST /api/certificates
 
