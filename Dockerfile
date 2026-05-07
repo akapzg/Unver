@@ -61,7 +61,7 @@ RUN . /tmp/target.env && \
     cp target/${RUST_TARGET}/release/unver /tmp/unver-bin
 
 # --- Runtime Stage (target arch) ---
-FROM --platform=$TARGETPLATFORM debian:bookworm-slim
+FROM debian:bookworm-slim
 WORKDIR /app
 RUN apt-get update && apt-get install -y openssl ca-certificates sqlite3 libsqlite3-0 && rm -rf /var/lib/apt/lists/*
 

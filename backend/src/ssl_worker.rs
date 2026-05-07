@@ -25,8 +25,11 @@ pub struct SslRequest {
 
 #[derive(Debug, Clone)]
 pub struct SslResult {
+    #[allow(dead_code)]
     pub primary_domain: String,
+    #[allow(dead_code)]
     pub cert_pem: String,
+    #[allow(dead_code)]
     pub key_pem: String,
     pub expires_at: String,
 }
