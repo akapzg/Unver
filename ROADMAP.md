@@ -58,6 +58,13 @@
 - 适合没有 DNS API 权限的场景
 - 前端验证方式下拉增加 HTTP-01 选项
 
+### Docker Compose 管理
+- 在线编辑 compose YAML（Monaco 编辑器）
+- 启动/停止/重启/查看日志
+- 容器 CPU/内存占用展示
+- 约定项目根路径，纯文件操作 + `docker compose` CLI，不调 Docker API
+- 需要挂载 `/var/run/docker.sock` 或配置 sudo 权限
+
 ---
 
 ## 暂缓
