@@ -59,6 +59,7 @@ pub async fn get(
 }
 
 /// GET /api/port-groups/:id/rules
+#[allow(dead_code)]
 pub async fn list_rules(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,

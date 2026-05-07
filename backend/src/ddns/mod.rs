@@ -4,7 +4,6 @@ use crate::errors::{AppError, AppResult};
 
 pub mod providers;
 
-use providers::DnsProvider;
 
 // ── Manager Loop ──────────────────────────────────────────────────────────
 
@@ -174,6 +173,7 @@ pub async fn fetch_ip(
     None
 }
 
+#[allow(dead_code)]
 pub async fn fetch_public_ip(
     client: &reqwest::Client,
     endpoints: &[&str],

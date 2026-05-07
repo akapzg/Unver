@@ -7,10 +7,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::future::Future;
 use axum::{
-    extract::ConnectInfo,
     http::{HeaderValue, Method},
     middleware,
-    response::{Html, IntoResponse, Response},
+    response::{Html, IntoResponse},
     routing::{delete, get, patch, post},
     Extension, Router,
 };
@@ -20,7 +19,6 @@ use tower_http::{
 };
 
 use crate::{config::Config, middleware::require_auth, state::AppState, state::get_setting};
-use tower::ServiceExt;
 
 pub async fn serve(
     state: Arc<AppState>,

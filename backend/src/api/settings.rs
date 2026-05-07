@@ -661,7 +661,7 @@ pub async fn certificate_status(
     axum::extract::Path(job_id): axum::extract::Path<String>,
 ) -> AppResult<Json<serde_json::Value>> {
     let mut jobs = state.background_jobs.lock().await;
-    let mut log_bufs = state.background_job_logs.lock().await;
+    let log_bufs = state.background_job_logs.lock().await;
     match jobs.get_mut(&job_id) {
         Some(job) => {
             // Drain accumulated logs from the shared buffer

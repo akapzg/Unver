@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use base64::prelude::{BASE64_URL_SAFE_NO_PAD, Engine};
 use chrono::{Utc, Duration};
 use instant_acme::{
-    Account, AuthorizationStatus, ChallengeHandle, ChallengeType, Identifier, NewAccount, NewOrder, Order, OrderStatus,
+    Account, AuthorizationStatus, ChallengeType, Identifier, NewAccount, NewOrder, Order, OrderStatus,
 };
 use rcgen::{CertificateParams, DistinguishedName, DnType, KeyPair};
 use reqwest::Client;
@@ -11,7 +11,7 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 use crate::security::{encrypt_data, decrypt_data};
-use crate::state::{AppState, get_setting, get_secret_setting, set_setting, set_secret_setting};
+use crate::state::{AppState, get_setting, get_secret_setting, set_secret_setting};
 use crate::errors::{AppError, AppResult};
 use crate::models::LogLine;
 
@@ -63,7 +63,7 @@ pub async fn load_certs_to_cache(state: &Arc<AppState>) -> AppResult<()> {
 }
 
 fn load_cert_into_cache(cert_pem: &str, key_pem: &str) -> AppResult<rustls::sign::CertifiedKey> {
-    use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+    use rustls::pki_types::CertificateDer;
     let mut cr = std::io::BufReader::new(cert_pem.as_bytes());
     let certs: Vec<CertificateDer> = rustls_pemfile::certs(&mut cr)
         .collect::<Result<Vec<_>, _>>().map_err(|e| AppError::Internal(anyhow::anyhow!("cert: {e}")))?;

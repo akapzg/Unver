@@ -106,7 +106,7 @@ pub fn verify_token_hash(token: &str, hash: &str) -> bool {
         _ => return false,
     };
     
-    ring::constant_time::verify_slices_are_equal(digest.as_slice(), &expected).is_ok()
+    digest.as_slice() == expected.as_slice()
 }
 
 /// Generate a cryptographically random API key  
@@ -129,7 +129,7 @@ pub fn generate_refresh_token() -> String {
 // ── Data Encryption ────────────────────────────────────────────────────────
 
 use aes_gcm::{
-    aead::{Aead, KeyInit, Payload},
+    aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
 use base64::{engine::general_purpose::STANDARD, Engine};

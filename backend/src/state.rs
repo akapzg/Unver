@@ -15,7 +15,7 @@ use rand::Rng;
 use crate::config::Config;
 use crate::errors::AppResult;
 use crate::models::{BackgroundJob, LogLine};
-use crate::network::{NetTracker, SharedNetTracker};
+use crate::network::SharedNetTracker;
 
 pub type SharedRateLimiter =
     Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>>;

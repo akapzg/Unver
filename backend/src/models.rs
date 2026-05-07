@@ -88,6 +88,7 @@ pub struct UpdatePortGroup {
 // ── User ────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
+#[allow(dead_code)]
 pub struct User {
     pub id: String,
     pub username: String,
@@ -212,7 +213,9 @@ pub struct DdnsDomainStatus {
 pub struct IssueCertRequest {
     pub domain: String,              // primary domain (CN)
     pub sans: Option<String>,        // comma/semicolon separated extra domains (SAN)
+    #[allow(dead_code)]
     pub method: String,              // "http01" | "dns01"
+    #[allow(dead_code)]
     pub cf_token: Option<String>,
     pub email: Option<String>,       // ACME email (saves to settings if provided)
 }
