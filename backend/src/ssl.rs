@@ -60,7 +60,7 @@ pub async fn load_certs_to_cache(state: &Arc<AppState>) -> AppResult<()> {
     Ok(())
 }
 
-fn load_cert_into_cache(cert_pem: &str, key_pem: &str) -> AppResult<rustls::sign::CertifiedKey> {
+pub fn load_cert_into_cache(cert_pem: &str, key_pem: &str) -> AppResult<rustls::sign::CertifiedKey> {
     use rustls::pki_types::CertificateDer;
     let mut cr = std::io::BufReader::new(cert_pem.as_bytes());
     let certs: Vec<CertificateDer> = rustls_pemfile::certs(&mut cr)
@@ -74,6 +74,16 @@ fn load_cert_into_cache(cert_pem: &str, key_pem: &str) -> AppResult<rustls::sign
     Ok(rustls::sign::CertifiedKey::new(certs, sk))
 }
 
+/// Parse the NotAfter date from a PEM certificate. Returns RFC3339 string or None on failure.
+pub fn parse_cert_expiry(cert_pem: &str) -> Option<String> {
+    let cert = openssl::x509::X509::from_pem(cert_pem.as_bytes()).ok()?;
+    let not_after = cert.not_after();
+    let now = openssl::asn1::Asn1Time::days_from_now(0).ok()?;
+    let diff = not_after.diff(&now).ok()?;
+    let expiry = chrono::Utc::now() + chrono::Duration::seconds(diff.secs as i64);
+    Some(expiry.to_rfc3339())
+}
+
 pub async fn check_and_renew_certs(state: &Arc<AppState>) -> AppResult<()> {
     let provider_name = get_setting(&state.db, "ddns_provider").await.unwrap_or_default();
    if provider_name.is_empty() { return Ok(()); }
@@ -82,7 +92,7 @@ pub async fn check_and_renew_certs(state: &Arc<AppState>) -> AppResult<()> {
     let proxies = sqlx::query!("SELECT domain FROM proxy_rules WHERE ssl_enabled = 1 AND enabled = 1")
         .fetch_all(&state.db).await?;
     for proxy in proxies {
-        let cert = sqlx::query!("SELECT expires_at FROM certificates WHERE domain = ?", proxy.domain)
+        let cert = sqlx::query!("SELECT expires_at FROM certificates WHERE domain = ? AND source = 'acme'", proxy.domain)
             .fetch_optional(&state.db).await?;
         let should = match cert {
             Some(c) => chrono::DateTime::parse_from_rfc3339(&c.expires_at)
@@ -204,7 +214,7 @@ pub async fn issue_certificate_multi(
     let id = uuid::Uuid::new_v4().to_string();
     let encrypted_key = encrypt_key_for_db(&state.db, &key_pem).await?;
     sqlx::query!(
-        "INSERT INTO certificates (id, domain, cert_pem, key_pem, expires_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(domain) DO UPDATE SET cert_pem = excluded.cert_pem, key_pem = excluded.key_pem, expires_at = excluded.expires_at, updated_at = datetime('now')",
+        "INSERT INTO certificates (id, domain, cert_pem, key_pem, expires_at, source) VALUES (?, ?, ?, ?, ?, 'acme') ON CONFLICT(domain) DO UPDATE SET cert_pem = excluded.cert_pem, key_pem = excluded.key_pem, expires_at = excluded.expires_at, source = 'acme', updated_at = datetime('now')",
         id, primary, cert_pem, encrypted_key, expires_at
     ).execute(&state.db).await?;
 
@@ -392,7 +402,7 @@ pub async fn issue_certificate_sync(
     let encrypted_key = encrypt_key_for_db(db, &key_pem).await
         .map_err(|e| format!("Encrypt key: {e}"))?;
     sqlx::query!(
-        "INSERT INTO certificates (id, domain, cert_pem, key_pem, expires_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(domain) DO UPDATE SET cert_pem = excluded.cert_pem, key_pem = excluded.key_pem, expires_at = excluded.expires_at, updated_at = datetime('now')",
+        "INSERT INTO certificates (id, domain, cert_pem, key_pem, expires_at, source) VALUES (?, ?, ?, ?, ?, 'acme') ON CONFLICT(domain) DO UPDATE SET cert_pem = excluded.cert_pem, key_pem = excluded.key_pem, expires_at = excluded.expires_at, source = 'acme', updated_at = datetime('now')",
         id, primary, cert_pem, encrypted_key, expires_at
     ).execute(db).await.map_err(|e| format!("DB: {e}"))?;
 

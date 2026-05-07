@@ -126,6 +126,7 @@ pub struct Certificate {
     pub domain: String,
     pub expires_at: String,
     pub auto_renew: bool,
+    pub source: String,
     pub created_at: String,
     pub updated_at: String,
 }

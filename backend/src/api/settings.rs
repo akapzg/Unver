@@ -3,12 +3,12 @@ use axum::{extract::State, Extension, Json};
 use serde_json::json;
 
 use crate::{
+    ssl::{self, parse_cert_expiry},
     errors::{AppError, AppResult},
     middleware::AuthUser,
     models::{ApiKey, AppSettings, CreateApiKey, NewApiKey, UpdateSettings},
     security::{generate_api_key, hash_token},
     state::{get_secret_setting, get_setting, set_secret_setting, set_setting, AppState},
-    ssl,
 };
 
 /// GET /api/settings
@@ -544,7 +544,7 @@ pub async fn list_certificates(
 ) -> AppResult<Json<Vec<crate::models::Certificate>>> {
     use crate::models::Certificate;
     let rows = sqlx::query!(
-        "SELECT id, domain, expires_at, auto_renew, created_at, updated_at FROM certificates ORDER BY created_at DESC"
+        "SELECT id, domain, expires_at, auto_renew, source, created_at, updated_at FROM certificates ORDER BY created_at DESC"
     )
     .fetch_all(&state.db)
     .await?;
@@ -553,6 +553,7 @@ pub async fn list_certificates(
         domain: r.domain,
         expires_at: r.expires_at,
         auto_renew: r.auto_renew != 0,
+        source: r.source,
         created_at: r.created_at,
         updated_at: r.updated_at,
     }).collect();
@@ -756,20 +757,32 @@ pub async fn upload_certificate(
     }
 
     let id = uuid::Uuid::new_v4().to_string();
-    let expires_at = (chrono::Utc::now() + chrono::Duration::days(365)).to_rfc3339();
+
+    // Parse real expiration from the uploaded certificate
+    let expires_at = match parse_cert_expiry(&cert_pem) {
+        Some(exp) => exp,
+        None => return Err(AppError::BadRequest("Unable to parse certificate expiration date".to_string())),
+    };
 
     let encrypted_key = ssl::encrypt_key_for_db(&state.db, &key_pem).await?;
     sqlx::query!(
-        "INSERT INTO certificates (id, domain, cert_pem, key_pem, expires_at)
-         VALUES (?, ?, ?, ?, ?)
+        "INSERT INTO certificates (id, domain, cert_pem, key_pem, expires_at, source, auto_renew)
+         VALUES (?, ?, ?, ?, ?, 'manual', 0)
          ON CONFLICT(domain) DO UPDATE SET
            cert_pem = excluded.cert_pem, key_pem = excluded.key_pem,
-           expires_at = excluded.expires_at, updated_at = datetime('now')",
+           expires_at = excluded.expires_at, source = 'manual', auto_renew = 0, updated_at = datetime('now')",
         id, domain, cert_pem, encrypted_key, expires_at
     ).execute(&state.db).await?;
 
-    crate::logger::info(&state.db, &format!("Certificate uploaded for {}", domain)).await;
-    Ok(Json(json!({ "message": "Certificate uploaded", "id": id, "domain": domain })))
+    // Push into live SNI cache immediately (no restart needed)
+    if let Ok(ck) = ssl::load_cert_into_cache(&cert_pem, &key_pem) {
+        if let Ok(mut cache) = state.cert_cache.write() {
+            cache.insert(domain.clone(), Arc::new(ck));
+        }
+    }
+
+    crate::logger::info(&state.db, &format!("Manual certificate uploaded for {}", domain)).await;
+    Ok(Json(json!({ "message": "Certificate uploaded", "id": id, "domain": domain, "expires_at": expires_at })))
 }
 
 /// GET /api/certificates/:id/download — download certificate PEM

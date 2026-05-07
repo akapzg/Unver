@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, domain, expires_at, auto_renew, created_at, updated_at FROM certificates ORDER BY created_at DESC",
+  "query": "SELECT id, domain, expires_at, auto_renew, source, created_at, updated_at FROM certificates ORDER BY created_at DESC",
   "describe": {
     "columns": [
       {
@@ -24,13 +24,18 @@
         "type_info": "Int64"
       },
       {
-        "name": "created_at",
+        "name": "source",
         "ordinal": 4,
         "type_info": "Text"
       },
       {
-        "name": "updated_at",
+        "name": "created_at",
         "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 6,
         "type_info": "Text"
       }
     ],
@@ -43,8 +48,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "d4e85af19d2465dd26c1e1c61cd79ba0736f10c896d9af1ce75604c6359c291e"
+  "hash": "c8dd62e49c49b3c568e8ab6cce0e153f538d05034d7bd375ab99fcea8f502d0a"
 }

@@ -31,7 +31,13 @@ const Ssl = () => {
     setLoading(true);
     try {
       const { data } = await api.listCertificates();
-      setCerts(data);
+      // Compute status on client side from expires_at
+      const now = new Date();
+      const enriched = data.map(cert => ({
+        ...cert,
+        status: cert.expires_at ? (new Date(cert.expires_at) < now ? 'expired' : 'valid') : 'unknown',
+      }));
+      setCerts(enriched);
     } catch (e) {
       addToast(t('failed'), 'error');
     }
@@ -215,16 +221,24 @@ const Ssl = () => {
                 <tr>
                   <th>{t('certDomain')}</th>
                   <th className="hide-mobile">{t('expires')}</th>
+                  <th>{t('source')}</th>
                   <th>{t('status')}</th>
                   <th>{t('autoRenew')}</th>
                   <th>{t('actions')}</th>
                 </tr>
               </thead>
               <tbody>
-                {certs.map(cert => (
+                {certs.map(cert => {
+                  const isManual = cert.source === 'manual';
+                  return (
                   <tr key={cert.id}>
                     <td><span className="mono">{cert.domain}</span></td>
                     <td className="hide-mobile"><span className="text-sm">{cert.expires_at ? new Date(cert.expires_at).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-'}</span></td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className={`badge ${isManual ? 'badge-warning' : 'badge-info'}`} style={{fontSize:'0.7rem'}}>
+                        {isManual ? t('sourceManual') : t('sourceAcme')}
+                      </span>
+                    </td>
                     <td style={{ textAlign: 'center' }}>
                       <span className={`badge ${cert.status === 'expired' ? 'badge-danger' : 'badge-success'}`}>
                         <span className="pulse-dot" />
@@ -232,26 +246,33 @@ const Ssl = () => {
                       </span>
                     </td>
                     <td>
+                      {isManual ? (
+                        <span className="text-muted text-sm">{t('notApplicable')}</span>
+                      ) : (
                       <label className="toggle toggle-sm" aria-label={t('autoRenew')}>
                         <input type="checkbox" checked={cert.auto_renew} onChange={() => toggleAutoRenew(cert)} />
                         <span className="toggle-slider"></span>
                       </label>
+                      )}
                     </td>
                     <td>
                       <div className="flex items-c gap-2" style={{ justifyContent: 'center' }}>
                         <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleDownload(cert)} title={t('certDownload')} aria-label={t('certDownload')}>
                           <Download size={14} />
                         </button>
+                        {!isManual && (
                         <button className="btn btn-ghost btn-icon btn-sm" onClick={handleRenew} title={t('renewNow')} aria-label={t('renewNow')}>
                           <RefreshCw size={14} />
                         </button>
+                        )}
                         <button className="btn btn-ghost btn-icon btn-sm" onClick={() => deleteCert(cert)} aria-label={t('delete')}>
                           <Trash2 size={14} />
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

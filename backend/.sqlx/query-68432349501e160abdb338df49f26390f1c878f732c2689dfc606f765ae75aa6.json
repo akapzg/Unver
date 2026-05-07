@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT expires_at FROM certificates WHERE domain = ?",
+  "query": "SELECT expires_at FROM certificates WHERE domain = ? AND source = 'acme'",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       false
     ]
   },
-  "hash": "44ebc7d04b41c7ca6d6e981d683811eda2360fe00383e9af828cca82112d7e7f"
+  "hash": "68432349501e160abdb338df49f26390f1c878f732c2689dfc606f765ae75aa6"
 }

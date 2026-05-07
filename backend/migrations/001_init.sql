@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS certificates (
     key_pem    TEXT NOT NULL,
     expires_at TEXT NOT NULL,
     auto_renew INTEGER NOT NULL DEFAULT 1,
+    source     TEXT NOT NULL DEFAULT 'acme',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
