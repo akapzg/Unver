@@ -1,6 +1,0 @@
-[build]
-# 在 Docker 容器内初始化 sqlite 数据库供 sqlx 编译检查
-pre-build = [
-    "apt-get update && apt-get install -y sqlite3",
-    "DATABASE_URL=sqlite:/tmp/unver.db sqlite3 /tmp/unver.db < migrations/001_init.sql",
-]
