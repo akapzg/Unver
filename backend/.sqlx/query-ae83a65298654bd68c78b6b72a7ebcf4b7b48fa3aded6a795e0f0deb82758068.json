@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT target_url FROM proxy_rules WHERE port_group_id = ? AND rule_type = 'tcp' AND enabled = 1 LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "target_url",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ae83a65298654bd68c78b6b72a7ebcf4b7b48fa3aded6a795e0f0deb82758068"
+}
