@@ -16,7 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Async runtime
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "signal", "time", "net", "io-util", "fs", "process"] }
 async-trait = "0.1"
 
 # Web framework
@@ -26,8 +26,8 @@ tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.5", features = ["cors", "fs", "set-header"] }
 
 # HTTP proxy
-hyper = { version = "1", features = ["full"] }
-hyper-util = { version = "0.1", features = ["full"] }
+hyper = { version = "1", features = ["http1", "http2", "server", "client"] }
+hyper-util = { version = "0.1", features = ["client-legacy", "server-auto", "tokio"] }
 http-body-util = "0.1"
 bytes = "1"
 
@@ -81,7 +81,6 @@ tracing-appender = "0.2"
 aes-gcm = "0.10"
 base64 = "0.22"
 rustls-native-certs = "0.8"
-zip = "2.0"
 sha2 = "0.10"
 hex = "0.4"
 tempfile = "3"
