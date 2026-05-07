@@ -167,30 +167,39 @@ jobs:
           git diff --cached --quiet || git commit -m "Sync from private repo v${{ env.VERSION }}"
           git push
 
+      - name: Fetch private release body
+        run: |
+          curl -s -H "Authorization: token ${{ secrets.PUBLIC_REPO_TOKEN }}" \
+            "https://api.github.com/repos/akapzg/Unver-Internal/releases/tags/v${{ env.VERSION }}" \
+            | jq -r .body > /tmp/release-body.md
+          cat >> /tmp/release-body.md <<'EOF'
+
+          ## Docker
+
+          ```bash
+          docker pull ghcr.io/akapzg/unver:${{ env.VERSION }}
+          ```
+
+          ## One-Click Install
+
+          ### Linux
+          ```bash
+          curl -fsSL https://raw.githubusercontent.com/akapzg/Unver/main/scripts/install.sh | bash
+          ```
+
+          ### OpenWrt
+          ```bash
+          curl -fsSL https://raw.githubusercontent.com/akapzg/Unver/main/scripts/install-openwrt.sh | bash
+          ```
+          EOF
+
       - name: Create public repo release
         uses: softprops/action-gh-release@v2
         with:
           repository: akapzg/Unver
           tag_name: v${{ env.VERSION }}
           name: v${{ env.VERSION }}
-          body: |
-            ## Docker
-
-            ```bash
-            docker pull ghcr.io/akapzg/unver:${{ env.VERSION }}
-            ```
-
-            ## One-Click Install
-
-            ### Linux
-            ```bash
-            curl -fsSL https://raw.githubusercontent.com/akapzg/Unver/main/scripts/install.sh | bash
-            ```
-
-            ### OpenWrt
-            ```bash
-            curl -fsSL https://raw.githubusercontent.com/akapzg/Unver/main/scripts/install-openwrt.sh | bash
-            ```
+          body_path: /tmp/release-body.md
           files: |
             dist/unver-linux-amd64/unver-linux-amd64.tar.gz
             dist/unver-linux-arm64/unver-linux-arm64.tar.gz
