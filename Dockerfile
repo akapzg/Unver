@@ -38,8 +38,11 @@ COPY backend/Cargo.toml ./
 COPY backend/migrations ./migrations
 COPY vendor ../vendor
 
-# Use mold linker for faster builds (5-10x LTO speedup)
-ENV RUSTFLAGS="-C link-arg=-fuse-ld=mold"
+# mold linker for native x86_64 only (cross-compile uses system linker)
+RUN case "${TARGETPLATFORM}" in \
+      "linux/amd64") echo 'RUSTFLAGS=-C link-arg=-fuse-ld=mold' >> /tmp/target.env ;; \
+      *) echo 'RUSTFLAGS=' >> /tmp/target.env ;; \
+    esac
 
 # Cache dependencies with a dummy build
 ENV DATABASE_URL=sqlite:///tmp/unver-build.db
