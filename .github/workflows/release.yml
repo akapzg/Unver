@@ -82,28 +82,27 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
 
-      - name: Install musl deps (OpenWrt x86_64)
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        run: sudo apt-get install -y musl-tools
+      - name: Install cross (musl targets)
+        if: endsWith(matrix.target, '-musl')
+        run: cargo install cross --locked
 
-      - name: Install musl deps (OpenWrt ARM64)
-        if: matrix.target == 'aarch64-unknown-linux-musl'
-        run: |
-          curl -fsSL https://musl.cc/aarch64-linux-musl-cross.tgz | sudo tar -xz -C /usr/local
-          echo "/usr/local/aarch64-linux-musl-cross/bin" >> $GITHUB_PATH
-
-      - name: Build backend
+      - name: Build backend (glibc)
+        if: "!endsWith(matrix.target, '-musl')"
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: x86_64-linux-musl-gcc
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-musl-gcc
-          CC_x86_64_unknown_linux_musl: x86_64-linux-musl-gcc
-          CC_aarch64_unknown_linux_musl: aarch64-linux-musl-gcc
         run: |
           cd backend
           sudo apt-get install -y sqlite3
           DATABASE_URL="sqlite:/tmp/unver.db" sqlite3 /tmp/unver.db < migrations/001_init.sql
           cargo build --release --target ${{ matrix.target }}
+
+      - name: Build backend (musl)
+        if: endsWith(matrix.target, '-musl')
+        env:
+          DATABASE_URL: sqlite:/tmp/unver.db
+        run: |
+          cd backend
+          cross build --release --target ${{ matrix.target }}
 
       - name: Package binary
         run: |
