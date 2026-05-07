@@ -15,7 +15,10 @@ pub async fn setup(config: &Config) -> Result<SqlitePool> {
         .foreign_keys(true)
         .create_if_missing(true);
 
-    let pool = SqlitePool::connect_with(options).await?;
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(2)
+        .connect_with(options)
+        .await?;
 
     sqlx::migrate!("./migrations").run(&pool).await?;
 

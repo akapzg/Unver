@@ -81,7 +81,7 @@ fn build_verified_client() -> ProxyClient {
 
     Client::builder(hyper_util::rt::TokioExecutor::new())
         .pool_idle_timeout(Duration::from_secs(90))
-        .pool_max_idle_per_host(8)
+        .pool_max_idle_per_host(4)
         .build(https)
 }
 
@@ -104,7 +104,7 @@ fn build_skip_verify_client() -> ProxyClient {
 
     Client::builder(hyper_util::rt::TokioExecutor::new())
         .pool_idle_timeout(Duration::from_secs(90))
-        .pool_max_idle_per_host(8)
+        .pool_max_idle_per_host(4)
         .build(https)
 }
 

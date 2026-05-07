@@ -24,7 +24,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
-#[tokio::main]
+#[tokio::main(worker_threads = 2)]
 async fn main() -> Result<()> {
     // CLI commands (version, update, restart, status, interactive menu) exit early.
     // Returns false for "start" — fall through to start the full service.
