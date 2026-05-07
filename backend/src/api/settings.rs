@@ -1093,7 +1093,7 @@ pub async fn list_logs_by_category(
 ) -> AppResult<Json<Vec<LogEntry>>> {
     let (pattern1, pattern2) = match category.as_str() {
         "ddns" => ("DDNS:%", None),
-        "ssl" => ("SSL:%", Some("Certificate%")),
+        "ssl" => ("SSL%", Some("Certificate%")),
         "login" => ("AUTH:%", None),
         "proxy" => ("PROXY:%", None),
         _ => return Err(AppError::BadRequest(format!("Unknown log category: {category}"))),
