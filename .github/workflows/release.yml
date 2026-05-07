@@ -106,9 +106,10 @@ jobs:
       - name: Extract version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
-      - name: Download all artifacts
+      - name: Download binary artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: unver-linux-*
           path: dist
 
       - name: Sync public files to public repo
