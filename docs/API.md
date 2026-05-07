@@ -28,7 +28,7 @@ Login and obtain a JWT token.
 ```json
 {
   "token": "string",
-  "expires_in": 86400
+  "expires_in": 3600
 }
 ```
 
@@ -40,7 +40,7 @@ Refresh an expiring JWT token.
 ```json
 {
   "token": "string",
-  "expires_in": 86400
+  "expires_in": 3600
 }
 ```
 
@@ -203,8 +203,10 @@ Update settings. All fields are optional.
 {
   "ddns_enabled": true,
   "ddns_provider": "cloudflare",
-  "ddns_cf_token": "new-token",
+  "ddns_cf_token": "cf-api-token",
   "ddns_cf_zone_id": "zone-id",
+  "ddns_aliyun_access_key_id": "ak-id",
+  "ddns_aliyun_access_key_secret": "ak-secret",
   "ddns_domain": "home.example.com",
   "ddns_interval": 300,
   "ddns_ip_source": "public"
@@ -449,7 +451,7 @@ Update a certificate record.
 
 ### DELETE /api/certificates/:id
 
-Delete a certificate and clean up Cloudflare DNS TXT records.
+Delete certificate and clean up DNS TXT records.
 
 **Response:** `200 OK`
 
@@ -461,19 +463,58 @@ Download the certificate PEM file.
 
 ### POST /api/certificates/upload
 
-Upload an existing certificate.
+Upload an existing certificate (manual, no auto-renew, pushed to SNI cache immediately).
 
-**Request:** `multipart/form-data`
-- `cert`: PEM certificate file
-- `key`: PEM private key file
+**Request:**
+```json
+{
+  "domain": "example.com",
+  "cert_pem": "-----BEGIN CERTIFICATE-----\n...",
+  "key_pem": "-----BEGIN PRIVATE KEY-----\n..."
+}
+```
 
-**Response:** `201 Created`
+**Response:** `200 OK`
+```json
+{
+  "message": "Certificate uploaded",
+  "id": "uuid",
+  "domain": "example.com",
+  "expires_at": "2025-04-01T00:00:00Z"
+}
+```
 
 ### POST /api/certificates/test
 
-Test certificate setup (Cloudflare connectivity, domain validation).
+Test certificate configuration (DNS provider connectivity, domain validation).
 
 **Response:** `200 OK`
+
+---
+
+## System Logs
+
+### GET /api/system/logs
+
+Get recent 200 system log entries.
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": 1,
+    "level": "INFO",
+    "message": "DDNS: Created A record example.com -> 1.2.3.4",
+    "created_at": "2025-01-01T00:00:00Z"
+  }
+]
+```
+
+### GET /api/system/logs/:category
+
+Get logs by category. Valid categories: `ddns`, `ssl`, `login`, `proxy`.
+
+**Response:** `200 OK` (same format)
 
 ---
 
@@ -511,7 +552,7 @@ Enable or disable DDNS for a domain.
 
 ### POST /api/ddns/test
 
-Test Cloudflare API connection.
+Test DNS provider API connection.
 
 **Response:** `200 OK`
 ```json
@@ -523,7 +564,7 @@ Test Cloudflare API connection.
 
 ### GET /api/ddns/zones
 
-List Cloudflare zones.
+List DNS zones (Cloudflare only; Aliyun auto-detects).
 
 **Response:** `200 OK`
 ```json
@@ -538,6 +579,6 @@ List Cloudflare zones.
 
 ### DELETE /api/ddns/domain/:domain
 
-Delete a domain from DDNS and remove DNS records from Cloudflare.
+Remove domain from DDNS and delete DNS records from DNS provider.
 
 **Response:** `200 OK`

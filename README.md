@@ -16,20 +16,22 @@ Unver/
 │   │   ├── proxy.rs            # HTTP/HTTPS reverse proxy core
 │   │   │                       #   - TLS termination + SNI dynamic matching
 │   │   │                       #   - HTTP/2 negotiation (h2 preface detection)
-│   │   │                       #   - TCP tunneling (TLS ClientHello forwarding)
+│   │   │                       #   - TCP tunneling (TLS SNI + plain TCP for SSH)
 │   │   │                       #   - HSTS response header
 │   │   │                       #   - Connection-level force_https (301 redirect)
 │   │   │                       #   - Hop-by-hop header cleanup
 │   │   ├── ssl.rs              # ACME DNS-01 certificate issuance (Let's Encrypt)
-│   │   │                       #   - Cloudflare DNS TXT record management
+│   │   │                       #   - DNS-01 TXT record management (Cloudflare / Aliyun)
 │   │   │                       #   - key_pem AES-256-GCM encrypted storage
 │   │   │                       #   - Certificate PEM parsing / validation
 │   │   ├── ssl_worker.rs       # SSL issuance dedicated tokio task
 │   │   ├── ddns/
 │   │   │   ├── mod.rs          # DDNS manager (scheduled sync, IP detection)
 │   │   │   └── providers/
-│   │   │       └── cloudflare.rs  # Cloudflare DNS Provider
-│   │   │                          #   - Zone ID auto-detection / validation
+│   │       ├── cloudflare.rs  # Cloudflare DNS Provider
+│   │       └── aliyun.rs       # Alibaba Cloud DNS Provider
+│   │                          #   - Zone ID auto-detection / validation
+│   │                          #   - HMAC-SHA1 signature auth
 │   │   │                          #   - A/AAAA record upsert
 │   │   │                          #   - Delete with CF record cleanup
 │   │   ├── api/                # REST API

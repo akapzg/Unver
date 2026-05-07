@@ -28,7 +28,7 @@ Authorization: Bearer <token>
 ```json
 {
   "token": "string",
-  "expires_in": 86400
+  "expires_in": 3600
 }
 ```
 
@@ -40,7 +40,7 @@ Authorization: Bearer <token>
 ```json
 {
   "token": "string",
-  "expires_in": 86400
+  "expires_in": 3600
 }
 ```
 
@@ -203,8 +203,10 @@ Authorization: Bearer <token>
 {
   "ddns_enabled": true,
   "ddns_provider": "cloudflare",
-  "ddns_cf_token": "new-token",
+  "ddns_cf_token": "cf-api-token",
   "ddns_cf_zone_id": "zone-id",
+  "ddns_aliyun_access_key_id": "ak-id",
+  "ddns_aliyun_access_key_secret": "ak-secret",
   "ddns_domain": "home.example.com",
   "ddns_interval": 300,
   "ddns_ip_source": "public"
@@ -449,7 +451,7 @@ Authorization: Bearer <token>
 
 ### DELETE /api/certificates/:id
 
-删除证书并清理 Cloudflare DNS TXT 记录。
+删除证书并清理 DNS TXT 记录。
 
 **响应：** `200 OK`
 
@@ -461,19 +463,58 @@ Authorization: Bearer <token>
 
 ### POST /api/certificates/upload
 
-上传已有证书。
+上传已有证书（手动证书，不会自动续签，立即推送到 SNI 缓存）。
 
-**请求：** `multipart/form-data`
-- `cert`: PEM 证书文件
-- `key`: PEM 私钥文件
+**请求：**
+```json
+{
+  "domain": "example.com",
+  "cert_pem": "-----BEGIN CERTIFICATE-----\n...",
+  "key_pem": "-----BEGIN PRIVATE KEY-----\n..."
+}
+```
 
-**响应：** `201 Created`
+**响应：** `200 OK`
+```json
+{
+  "message": "Certificate uploaded",
+  "id": "uuid",
+  "domain": "example.com",
+  "expires_at": "2025-04-01T00:00:00Z"
+}
+```
 
 ### POST /api/certificates/test
 
-测试证书配置（Cloudflare 连通性、域名验证）。
+测试证书配置（DNS 提供商连通性、域名验证）。
 
 **响应：** `200 OK`
+
+---
+
+## 系统日志
+
+### GET /api/system/logs
+
+获取最近 200 条系统日志。
+
+**响应：** `200 OK`
+```json
+[
+  {
+    "id": 1,
+    "level": "INFO",
+    "message": "DDNS: Created A record example.com -> 1.2.3.4",
+    "created_at": "2025-01-01T00:00:00Z"
+  }
+]
+```
+
+### GET /api/system/logs/:category
+
+按分类获取日志。`category` 可选值：`ddns`、`ssl`、`login`、`proxy`。
+
+**响应：** `200 OK`（同上格式）
 
 ---
 
@@ -511,7 +552,7 @@ Authorization: Bearer <token>
 
 ### POST /api/ddns/test
 
-测试 Cloudflare API 连接。
+测试 DNS 提供商 API 连接。
 
 **响应：** `200 OK`
 ```json
@@ -523,7 +564,7 @@ Authorization: Bearer <token>
 
 ### GET /api/ddns/zones
 
-列出 Cloudflare 区域。
+列出 DNS 区域（仅 Cloudflare 支持，阿里云自动识别）。
 
 **响应：** `200 OK`
 ```json
@@ -538,6 +579,6 @@ Authorization: Bearer <token>
 
 ### DELETE /api/ddns/domain/:domain
 
-从 DDNS 中删除域名并从 Cloudflare 移除 DNS 记录。
+从 DDNS 中删除域名并从 DNS 提供商移除 DNS 记录。
 
 **响应：** `200 OK`

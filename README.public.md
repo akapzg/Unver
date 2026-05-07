@@ -12,9 +12,11 @@
 - ✅ **Cross-Platform** — x86_64, ARM64, ARMv7, runs on OpenWrt routers
 - ✅ **Modern Web UI** — React dark theme, CN/EN i18n, real-time traffic, categorized logs
 - ✅ **Docker One-Click** — single command deploy, persistent data, auto-restart
-- ✅ **DDNS Auto-Sync** — Cloudflare A/AAAA records, auto-update on IP change
+- ✅ **DDNS Auto-Sync** — Cloudflare / Alibaba Cloud, auto-update on IP change
 - ✅ **HTTP → HTTPS** — connection-level 301 redirect + HSTS, zero plaintext leak
+- ✅ **TCP Proxy** — tunnel SSH, MySQL, any TCP protocol
 - ✅ **HTTP/2** — auto h2 negotiation on TLS connections
+- ✅ **Idle Lock** — auto-logout after 15 min inactivity
 - ✅ **Rust-Powered** — sub-10 MB memory footprint, single static binary, no GC pauses
 
 ---
