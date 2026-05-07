@@ -6,8 +6,6 @@ use instant_acme::{
     Account, AuthorizationStatus, ChallengeType, Identifier, NewAccount, NewOrder, Order, OrderStatus,
 };
 use rcgen::{CertificateParams, DistinguishedName, DnType, KeyPair};
-use reqwest::Client;
-use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 use crate::security::{encrypt_data, decrypt_data};
@@ -77,7 +75,8 @@ fn load_cert_into_cache(cert_pem: &str, key_pem: &str) -> AppResult<rustls::sign
 }
 
 pub async fn check_and_renew_certs(state: &Arc<AppState>) -> AppResult<()> {
-    let cf_token = get_secret_setting(&state.db, "ddns_cf_token").await.unwrap_or_default();
+    let provider_name = get_setting(&state.db, "ddns_provider").await.unwrap_or_default();
+   if provider_name.is_empty() { return Ok(()); }
     let email = get_setting(&state.db, "acme_email").await?;
     if email.is_empty() { return Ok(()); }
     let proxies = sqlx::query!("SELECT domain FROM proxy_rules WHERE ssl_enabled = 1 AND enabled = 1")
@@ -91,7 +90,7 @@ pub async fn check_and_renew_certs(state: &Arc<AppState>) -> AppResult<()> {
             None => false,  // no cert exists — don't auto-issue, user must trigger manually
         };
         if should {
-            match issue_certificate_multi(state, &email, &[proxy.domain.clone()], &cf_token, None).await {
+            match issue_certificate_multi(state, &email, &[proxy.domain.clone()], &provider_name, None).await {
                 Ok(_) => crate::logger::info(&state.db, &format!("SSL issued for {}", proxy.domain)).await,
                 Err(e) => crate::logger::error(&state.db, &format!("SSL failed for {}: {e}", proxy.domain)).await,
             }
@@ -122,24 +121,25 @@ fn push_log(log: &Option<Arc<tokio::sync::Mutex<Vec<LogLine>>>>, level: &str, ms
 }
 
 pub async fn issue_certificate_multi(
-    state: &Arc<AppState>, email: &str, domains: &[String],
-    cf_token: &str,
-    log: Option<Arc<tokio::sync::Mutex<Vec<LogLine>>>>,
+   state: &Arc<AppState>, email: &str, domains: &[String],
+   provider_name: &str,
+   log: Option<Arc<tokio::sync::Mutex<Vec<LogLine>>>>,
 ) -> AppResult<()> {
     let use_staging = get_setting(&state.db, "acme_staging").await.unwrap_or_default() == "true";
     let acme_url = if use_staging { LETS_ENCRYPT_STAGING } else { LETS_ENCRYPT_URL };
     push_log(&log, "info", &format!("🔐 ACME (staging={use_staging})"));
 
     let account = get_or_create_account(state, email, acme_url).await?;
-    push_log(&log, "success", "ACME 账户就绪");
+   push_log(&log, "success", "ACME 账户就绪");
 
-    let ids: Vec<Identifier> = domains.iter().map(|d| Identifier::Dns(d.clone())).collect();
-    let mut order = account.new_order(&NewOrder::new(&ids)).await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("Order: {e}")))?;
-    push_log(&log, "info", &format!("📋 订单: {}", domains.join(", ")));
+   let ids: Vec<Identifier> = domains.iter().map(|d| Identifier::Dns(d.clone())).collect();
+   let mut order = account.new_order(&NewOrder::new(&ids)).await
+       .map_err(|e| AppError::Internal(anyhow::anyhow!("Order: {e}")))?;
+   push_log(&log, "info", &format!("📋 订单: {}", domains.join(", ")));
 
-    let cf_client = Client::new();
-    push_log(&log, "info", "🔑 验证 (DNS-01)");
+   let provider = crate::ddns::providers::get_provider(provider_name)
+       .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Unknown DDNS provider: {provider_name}")))?;
+   push_log(&log, "info", "🔑 验证 (DNS-01)");
 
     let mut auths = order.authorizations();
     while let Some(a) = auths.next().await {
@@ -159,27 +159,27 @@ pub async fn issue_certificate_multi(
         hasher.update(key_auth.as_bytes());
         let dns_value = BASE64_URL_SAFE_NO_PAD.encode(hasher.finalize());
 
-        push_log(&log, "info", &format!("  🌐 DNS TXT: _acme-challenge.{identifier}"));
-        let zone_id = find_zone(&cf_client, cf_token, &identifier).await?;
-        let rid = create_txt(&cf_client, cf_token, &zone_id, &identifier, &dns_value).await?;
-        push_log(&log, "success", "  ✅ TXT 已创建");
+       push_log(&log, "info", &format!("  🌐 DNS TXT: _acme-challenge.{identifier}"));
+       let rid = provider.create_acme_txt(state, &identifier, &dns_value).await
+           .map_err(|e| AppError::Internal(anyhow::anyhow!("Create TXT: {e}")))?;
+       push_log(&log, "success", "  ✅ TXT 已创建");
 
-        // Poll for validation (LE auto-polls DNS, set_ready is optional)
-        push_log(&log, "info", "  ⏳ 等待验证...");
-        let mut ok = false;
-        for i in 1..=40 {
-            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-            let st = auth.refresh().await.map_err(|e| AppError::Internal(anyhow::anyhow!("Refresh: {e}")))?.status;
-            match st {
-                AuthorizationStatus::Valid => { ok = true; break; }
-                AuthorizationStatus::Invalid => { delete_txt(&cf_client, cf_token, &zone_id, &rid).await.ok(); return Err(AppError::Internal(anyhow::anyhow!("Invalid"))); }
-                _ if i == 30 => { delete_txt(&cf_client, cf_token, &zone_id, &rid).await.ok(); return Err(AppError::Internal(anyhow::anyhow!("Timeout"))); }
-                _ if i % 3 == 0 => push_log(&log, "info", &format!("    验证中 ({i}/30)")),
-                _ => {}
-            }
-        }
-        if ok { push_log(&log, "success", "  ✅ DNS-01 通过"); }
-        delete_txt(&cf_client, cf_token, &zone_id, &rid).await.ok();
+       // Poll for validation (LE auto-polls DNS, set_ready is optional)
+       push_log(&log, "info", "  ⏳ 等待验证...");
+       let mut ok = false;
+       for i in 1..=40 {
+           tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+           let st = auth.refresh().await.map_err(|e| AppError::Internal(anyhow::anyhow!("Refresh: {e}")))?.status;
+           match st {
+               AuthorizationStatus::Valid => { ok = true; break; }
+               AuthorizationStatus::Invalid => { let _ = provider.delete_acme_txt(state, &identifier, &rid).await; return Err(AppError::Internal(anyhow::anyhow!("Invalid"))); }
+               _ if i == 30 => { let _ = provider.delete_acme_txt(state, &identifier, &rid).await; return Err(AppError::Internal(anyhow::anyhow!("Timeout"))); }
+               _ if i % 3 == 0 => push_log(&log, "info", &format!("    验证中 ({i}/30)")),
+               _ => {}
+           }
+       }
+       if ok { push_log(&log, "success", "  ✅ DNS-01 通过"); }
+       let _ = provider.delete_acme_txt(state, &identifier, &rid).await;
     }
 
     push_log(&log, "info", "⏳ 等待订单就绪...");
@@ -236,95 +236,22 @@ async fn get_or_create_account(state: &Arc<AppState>, email: &str, acme_url: &st
     }
 }
 
-async fn find_zone(client: &Client, token: &str, domain: &str) -> AppResult<String> {
-    let parts: Vec<&str> = domain.split('.').collect();
-    for i in 1..parts.len() {
-        let c = parts[i..].join(".");
-        let url = format!("https://api.cloudflare.com/client/v4/zones?name={c}&status=active");
-        let resp = client.get(&url).header("Authorization", format!("Bearer {token}")).send().await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("CF: {e}")))?;
-        let b: serde_json::Value = resp.json().await.map_err(|e| AppError::Internal(anyhow::anyhow!("JSON: {e}")))?;
-        if b["success"].as_bool() == Some(true) {
-            if let Some(id) = b["result"].as_array().and_then(|a| a.first()).and_then(|z| z["id"].as_str()) {
-                return Ok(id.to_string());
-            }
-        }
-    }
-    Err(AppError::Internal(anyhow::anyhow!("No zone for {domain}")))
-}
-
-async fn create_txt(client: &Client, token: &str, zone_id: &str, domain: &str, value: &str) -> AppResult<String> {
-    let url = format!("https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records");
-    let r: serde_json::Value = client.post(&url)
-        .header("Authorization", format!("Bearer {token}"))
-        .header("Content-Type", "application/json")
-        .json(&json!({"type":"TXT","name":format!("_acme-challenge.{domain}"),"content":value,"ttl":60}))
-        .send().await.map_err(|e| AppError::Internal(anyhow::anyhow!("CF: {e}")))?
-        .json().await.map_err(|e| AppError::Internal(anyhow::anyhow!("JSON: {e}")))?;
-    r["result"]["id"].as_str().map(|s| s.to_string())
-        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("No ID: {r}")))
-}
-
-async fn delete_txt(client: &Client, token: &str, zone_id: &str, record_id: &str) -> AppResult<()> {
-    let url = format!("https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{record_id}");
-    client.delete(&url).header("Authorization", format!("Bearer {token}")).send().await.map_err(|e| AppError::Internal(anyhow::anyhow!("Del: {e}")))?;
-    Ok(())
-}
-
-/// Clean up leftover _acme-challenge TXT records from Cloudflare after cert deletion
+// ── ACME account management
 pub async fn cleanup_acme_txt(state: &Arc<AppState>, domain: &str) -> Result<usize, String> {
-    let token = get_secret_setting(&state.db, "ddns_cf_token").await
-        .map_err(|e| format!("Token: {e}"))?;
-    if token.is_empty() {
-        return Ok(0); // no token configured, nothing to clean
-    }
-
-    let zone_id = get_setting(&state.db, "ddns_cf_zone_id").await
-        .map_err(|e| format!("Zone: {e}"))?;
-    let zone_id = if zone_id.is_empty() {
-        let alt = get_setting(&state.db, "cf_zone_id").await.unwrap_or_default();
-        if alt.is_empty() { return Ok(0); }
-        alt
-    } else { zone_id };
-
-    let client = Client::new();
-    let record_name = format!("_acme-challenge.{domain}");
-
-    // Find TXT records
-    let url = format!(
-        "https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records?type=TXT&name={record_name}"
-    );
-    let resp = client.get(&url)
-        .header("Authorization", format!("Bearer {token}"))
-        .send().await
-        .map_err(|e| format!("CF API: {e}"))?;
-
-    let body: serde_json::Value = resp.json().await.unwrap_or_default();
-    let records = body["result"].as_array().cloned().unwrap_or_default();
-
-    let mut deleted = 0usize;
-    for record in &records {
-        let rid = record["id"].as_str().unwrap_or("");
-        if rid.is_empty() { continue; }
-        let del_url = format!(
-            "https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{rid}"
-        );
-        if client.delete(&del_url)
-            .header("Authorization", format!("Bearer {token}"))
-            .send().await.is_ok() {
-            deleted += 1;
-        }
-    }
-    Ok(deleted)
+   let provider_name = get_setting(&state.db, "ddns_provider").await.unwrap_or_default();
+   if provider_name.is_empty() { return Ok(0); }
+   let provider = crate::ddns::providers::get_provider(&provider_name)
+       .ok_or_else(|| format!("Unknown DDNS provider: {provider_name}"))?;
+   provider.cleanup_acme_txts(state, domain).await
 }
-
 // === Worker-thread version (no Send required, can use set_ready) ===
 
 /// Issue certificate from the SSL worker thread. Uses set_ready for fast validation.
 /// Returns cert_pem, key_pem, expires_at on success.
 pub async fn issue_certificate_sync(
-    email: &str, domains: &[String], cf_token: &str,
-    use_staging: bool,
+   email: &str, domains: &[String], provider_name: &str,
+   state: &Arc<AppState>,
+   use_staging: bool,
     db: &SqlitePool,
     cert_cache: &Arc<std::sync::RwLock<HashMap<String, Arc<rustls::sign::CertifiedKey>>>>,
     log_buf: Option<Arc<tokio::sync::Mutex<Vec<LogLine>>>>,
@@ -363,65 +290,64 @@ pub async fn issue_certificate_sync(
     let ids: Vec<Identifier> = domains.iter().map(|d| Identifier::Dns(d.clone())).collect();
     let mut order = account.new_order(&NewOrder::new(&ids)).await
         .map_err(|e| format!("Order: {e}"))?;
-    push("info", &format!("📋 订单: {}", domains.join(", ")));
+   push("info", &format!("📋 订单: {}", domains.join(", ")));
 
-    let cf_client = Client::new();
-    push("info", "🔑 验证 (DNS-01)");
+   let provider = crate::ddns::providers::get_provider(provider_name)
+       .ok_or_else(|| format!("Unknown DDNS provider: {provider_name}"))?;
+   push("info", "🔑 验证 (DNS-01)");
 
-    let mut auths = order.authorizations();
-    while let Some(a) = auths.next().await {
-        let mut auth = a.map_err(|e| format!("Auth: {e}"))?;
+   let mut auths = order.authorizations();
+   while let Some(a) = auths.next().await {
+       let mut auth = a.map_err(|e| format!("Auth: {e}"))?;
 
-        let auth_state = auth.refresh().await.map_err(|e| format!("Refresh: {e}"))?;
-        let challenge = auth_state.challenges.iter()
-            .find(|c| c.r#type == ChallengeType::Dns01)
-            .ok_or_else(|| "No Dns01 challenge".to_string())?;
-        let challenge_token = challenge.token.clone();
-        let challenge_url = challenge.url.clone();
-        let identifier = auth_state.identifier().to_string();
-        let key_thumbprint = account.key_thumbprint();
-        let key_auth = format!("{}.{}", challenge_token, key_thumbprint);
+       let auth_state = auth.refresh().await.map_err(|e| format!("Refresh: {e}"))?;
+       let challenge = auth_state.challenges.iter()
+           .find(|c| c.r#type == ChallengeType::Dns01)
+           .ok_or_else(|| "No Dns01 challenge".to_string())?;
+       let challenge_token = challenge.token.clone();
+       let challenge_url = challenge.url.clone();
+       let identifier = auth_state.identifier().to_string();
+       let key_thumbprint = account.key_thumbprint();
+       let key_auth = format!("{}.{}", challenge_token, key_thumbprint);
 
-        let mut hasher = Sha256::new();
-        hasher.update(key_auth.as_bytes());
-        let dns_value = BASE64_URL_SAFE_NO_PAD.encode(hasher.finalize());
+       let mut hasher = Sha256::new();
+       hasher.update(key_auth.as_bytes());
+       let dns_value = BASE64_URL_SAFE_NO_PAD.encode(hasher.finalize());
 
-        push("info", &format!("  🌐 DNS TXT: _acme-challenge.{identifier}"));
-        let zone_id = find_zone(&cf_client, cf_token, &identifier).await
-            .map_err(|e| format!("Find zone: {e}"))?;
-        let rid = create_txt(&cf_client, cf_token, &zone_id, &identifier, &dns_value).await
-            .map_err(|e| format!("Create TXT: {e}"))?;
-        push("success", "  ✅ TXT 已创建");
+       push("info", &format!("  🌐 DNS TXT: _acme-challenge.{identifier}"));
+       let rid = provider.create_acme_txt(state, &identifier, &dns_value).await
+           .map_err(|e| format!("Create TXT: {e}"))?;
+       push("success", "  ✅ TXT 已创建");
 
-        // Notify LE we're ready — sends JWS-signed POST with {} body
-        tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
-        account.set_challenge_ready(&challenge_url).await
-            .map_err(|e| format!("set_challenge_ready: {e}"))?;
+       // Notify LE we're ready — sends JWS-signed POST with {} body
+       tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
+       account.set_challenge_ready(&challenge_url).await
+           .map_err(|e| format!("set_challenge_ready: {e}"))?;
 
-        // ── Poll (wait for LE to validate on its own schedule) ─────
-        let mut ok = false;
-        for i in 1..=120 {
-            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-            let st = auth.refresh().await.map_err(|e| format!("Refresh: {e}"))?.status;
-            match st {
-                AuthorizationStatus::Valid => { ok = true; break; }
-                AuthorizationStatus::Invalid => {
-                    delete_txt(&cf_client, cf_token, &zone_id, &rid).await.ok();
-                    return Err("Challenge invalid".to_string());
-                }
-                _ if i == 120 => {
-                    delete_txt(&cf_client, cf_token, &zone_id, &rid).await.ok();
-                    return Err("Validation timeout (240s)".to_string());
-                }
-                _ => {}
-            }
-        }
-        if !ok {
-            delete_txt(&cf_client, cf_token, &zone_id, &rid).await.ok();
-            return Err("Validation failed".to_string());
-        }
-        push("success", "  ✅ DNS-01 通过");
-        delete_txt(&cf_client, cf_token, &zone_id, &rid).await.ok();
+       // ── Poll (wait for LE to validate on its own schedule) ─────
+       let mut ok = false;
+       for i in 1..=120 {
+           tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+           let st = auth.refresh().await.map_err(|e| format!("Refresh: {e}"))?.status;
+           match st {
+               AuthorizationStatus::Valid => { ok = true; break; }
+               AuthorizationStatus::Invalid => {
+                   let _ = provider.delete_acme_txt(state, &identifier, &rid).await;
+                   return Err("Challenge invalid".to_string());
+               }
+               _ if i == 120 => {
+                   let _ = provider.delete_acme_txt(state, &identifier, &rid).await;
+                   return Err("Validation timeout (240s)".to_string());
+               }
+               _ => {}
+           }
+       }
+       if !ok {
+           let _ = provider.delete_acme_txt(state, &identifier, &rid).await;
+           return Err("Validation failed".to_string());
+       }
+       push("success", "  ✅ DNS-01 通过");
+       let _ = provider.delete_acme_txt(state, &identifier, &rid).await;
     }
 
     // Wait for order to be ready

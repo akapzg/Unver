@@ -427,4 +427,115 @@ impl DnsProvider for CloudflareProvider {
 
         Ok(zones)
     }
+
+    async fn create_acme_txt(
+        &self,
+        state: &Arc<AppState>,
+        domain: &str,
+        value: &str,
+    ) -> Result<String, String> {
+        let (token, _zone_id) = Self::get_credentials(state).await?;
+        let client = reqwest::Client::new();
+
+        let parts: Vec<&str> = domain.split('.').collect();
+        let mut zone_id = String::new();
+        for i in 1..parts.len() {
+            let candidate = parts[i..].join(".");
+            let url = format!("https://api.cloudflare.com/client/v4/zones?name={candidate}&status=active");
+            let resp = client.get(&url)
+                .header("Authorization", format!("Bearer {token}"))
+                .send().await.map_err(|e| format!("CF API: {e}"))?;
+            let body: serde_json::Value = resp.json().await.map_err(|e| format!("JSON: {e}"))?;
+            if body["success"].as_bool() == Some(true) {
+                if let Some(id) = body["result"].as_array().and_then(|a| a.first()).and_then(|z| z["id"].as_str()) {
+                    zone_id = id.to_string();
+                    break;
+                }
+            }
+        }
+        if zone_id.is_empty() {
+            return Err(format!("No zone found for {domain}"));
+        }
+
+        let url = format!("https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records");
+        let r: serde_json::Value = client.post(&url)
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Content-Type", "application/json")
+            .json(&serde_json::json!({"type":"TXT","name":format!("_acme-challenge.{domain}"),"content":value,"ttl":60}))
+            .send().await.map_err(|e| format!("CF POST: {e}"))?
+            .json().await.map_err(|e| format!("JSON: {e}"))?;
+        r["result"]["id"].as_str()
+            .map(|s| s.to_string())
+            .ok_or_else(|| format!("No record ID in response: {r}"))
+    }
+
+    async fn delete_acme_txt(
+        &self,
+        state: &Arc<AppState>,
+        domain: &str,
+        record_id: &str,
+    ) -> Result<(), String> {
+        let (token, _zone_id) = Self::get_credentials(state).await?;
+        let client = reqwest::Client::new();
+
+        let parts: Vec<&str> = domain.split('.').collect();
+        let mut zone_id = String::new();
+        for i in 1..parts.len() {
+            let candidate = parts[i..].join(".");
+            let url = format!("https://api.cloudflare.com/client/v4/zones?name={candidate}&status=active");
+            let resp = client.get(&url)
+                .header("Authorization", format!("Bearer {token}"))
+                .send().await.map_err(|e| format!("CF API: {e}"))?;
+            let body: serde_json::Value = resp.json().await.map_err(|e| format!("JSON: {e}"))?;
+            if body["success"].as_bool() == Some(true) {
+                if let Some(id) = body["result"].as_array().and_then(|a| a.first()).and_then(|z| z["id"].as_str()) {
+                    zone_id = id.to_string();
+                    break;
+                }
+            }
+        }
+        if zone_id.is_empty() {
+            return Err(format!("No zone found for {domain}"));
+        }
+
+        let url = format!("https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{record_id}");
+        client.delete(&url)
+            .header("Authorization", format!("Bearer {token}"))
+            .send().await.map_err(|e| format!("CF DELETE: {e}"))?;
+        Ok(())
+    }
+
+    async fn cleanup_acme_txts(
+        &self,
+        state: &Arc<AppState>,
+        domain: &str,
+    ) -> Result<usize, String> {
+        let (token, zone_id) = Self::get_credentials(state).await?;
+        if token.is_empty() { return Ok(0); }
+        if zone_id.is_empty() { return Ok(0); }
+
+        let client = reqwest::Client::new();
+        let record_name = format!("_acme-challenge.{domain}");
+        let url = format!("https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records?type=TXT&name={record_name}");
+        let resp = client.get(&url)
+            .header("Authorization", format!("Bearer {token}"))
+            .send().await.map_err(|e| format!("CF API: {e}"))?;
+
+        let body: serde_json::Value = resp.json().await.unwrap_or_default();
+        let records = body["result"].as_array().cloned().unwrap_or_default();
+
+        let mut deleted = 0usize;
+        for record in &records {
+            let rid = record["id"].as_str().unwrap_or("");
+            if rid.is_empty() { continue; }
+            let del_url = format!("https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{rid}");
+            if client.delete(&del_url)
+                .header("Authorization", format!("Bearer {token}"))
+                .send().await.is_ok()
+            {
+                deleted += 1;
+            }
+        }
+        Ok(deleted)
+    }
 }

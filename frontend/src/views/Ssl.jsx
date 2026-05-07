@@ -13,7 +13,7 @@ const Ssl = () => {
   const [certs, setCerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ domain: '', sans: '', method: 'dns01', cf_token: '', email: '' });
+  const [form, setForm] = useState({ domain: '', sans: '', method: 'dns01', email: '' });
 
   // Issue progress tracking
   const [issuing, setIssuing] = useState(false);
@@ -49,7 +49,7 @@ const Ssl = () => {
   };
 
   const openModal = () => {
-    setForm({ domain: '', sans: '', method: 'dns01', cf_token: settings?.ddns_cf_token || '', email: settings?.acme_email || '' });
+    setForm({ domain: '', sans: '', method: 'dns01', email: settings?.acme_email || '' });
     setShowModal(true);
   };
 
@@ -60,7 +60,6 @@ const Ssl = () => {
         domain: form.domain,
         sans: form.sans || undefined,
         method: form.method,
-        cf_token: form.method === 'dns01' ? (form.cf_token || undefined) : undefined,
         email: form.email || undefined,
       });
       setShowModal(false);
@@ -344,19 +343,10 @@ const Ssl = () => {
               </div>
               <div className="form-group">
                 <label className="form-label">{t('verificationMethod')}</label>
-                <select className="form-input" value={form.method} onChange={e => {
-                  const method = e.target.value;
-                  setForm({...form, method, cf_token: method === 'dns01' ? (settings?.ddns_cf_token || '') : ''});
-                }}>
+                <select className="form-input" value={form.method} onChange={e => setForm({...form, method: e.target.value})}>
                   <option value="dns01">{t('dns01Cloudflare')}</option>
                 </select>
               </div>
-              {form.method === 'dns01' && (
-                <div className="form-group">
-                  <label className="form-label">{t('apiToken')}</label>
-                  <input className="form-input" value={form.cf_token} readOnly />
-                </div>
-              )}
               <footer className="modal-footer">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>{t('cancel')}</button>
                 <button type="submit" className="btn btn-primary">{t('issueCert')}</button>

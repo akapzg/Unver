@@ -7,19 +7,59 @@ import { api } from '../api/client';
 import client from '../api/client';
 import { logStyle, logIcon } from '../utils/logHelpers';
 
-const DEFAULT_CONFIG = { id: Date.now(), ddns_enabled: false, ddns_provider: 'cloudflare', ddns_cf_token: '', ddns_cf_zone_id: '', ddns_domains: '' };
+// ── Provider field definitions ──────────────────────────────────────────
+// Each provider declares what credential fields it needs.
+// Adding a new provider = just add an entry here + a provider_name option below.
+const PROVIDER_FIELDS = {
+  cloudflare: [
+    { key: 'ddns_cf_token',  label: 'apiToken', type: 'password', placeholder: 'Cloudflare API Token',     hasFetchZones: false },
+    { key: 'ddns_cf_zone_id', label: 'zoneId',   type: 'text',     placeholder: 'leaveEmptyAuto',           hasFetchZones: true, optional: true },
+  ],
+  aliyun: [
+    { key: 'ddns_aliyun_access_key_id',     label: 'accessKeyId',     type: 'text',     placeholder: 'Aliyun AccessKey ID' },
+    { key: 'ddns_aliyun_access_key_secret', label: 'accessKeySecret', type: 'password', placeholder: 'Aliyun AccessKey Secret' },
+  ],
+};
+
+// All known provider credential keys (for initialization & cleanup)
+const ALL_PROVIDER_KEYS = Object.values(PROVIDER_FIELDS).flat().map(f => f.key);
+
+// Provider display names (user-visible labels)
+const PROVIDER_LABELS = {
+  cloudflare: 'Cloudflare',
+  aliyun:     'Aliyun (阿里云)',
+};
+
+// ── Helpers ─────────────────────────────────────────────────────────────
+
+/** Build a fresh default config with all provider fields set to '' */
+const makeDefaultConfig = () => {
+  const cfg = { id: Date.now(), ddns_enabled: false, ddns_provider: 'cloudflare', ddns_domains: '' };
+  for (const k of ALL_PROVIDER_KEYS) cfg[k] = '';
+  return cfg;
+};
+
+/** Clear all credential fields for a config (used when switching providers) */
+const clearCredentials = (cfg) => {
+  const cleaned = { ...cfg };
+  for (const k of ALL_PROVIDER_KEYS) cleaned[k] = '';
+  return cleaned;
+};
+
+// ── Component ────────────────────────────────────────────────────────────
 
 const Ddns = () => {
   const { t } = useTranslation();
   const { addToast } = useToast();
   const { settings, fetchSettings, updateSettings } = useStore();
-  const [configs, setConfigs] = useState([DEFAULT_CONFIG]);
+  const [configs, setConfigs] = useState([makeDefaultConfig()]);
   const [domainStatuses, setDomainStatuses] = useState([]);
   const [saving, setSaving] = useState(false);
   const [zones, setZones] = useState([]);
   const [fetchingZones, setFetchingZones] = useState(false);
 
-  // Load existing settings into first config
+  // ── Load settings ──────────────────────────────────────────────────
+
   useEffect(() => { fetchSettings(); }, []);
   useEffect(() => {
     if (settings) {
@@ -27,12 +67,14 @@ const Ddns = () => {
         ...c,
         ddns_enabled: settings.ddns_enabled || false,
         ddns_provider: settings.ddns_provider || 'cloudflare',
-        ddns_cf_token: settings.ddns_cf_token || '',
-        ddns_cf_zone_id: settings.ddns_cf_zone_id || '',
         ddns_domains: settings.ddns_domains || '',
+        // Hydrate all known provider keys from settings
+        ...Object.fromEntries(ALL_PROVIDER_KEYS.map(k => [k, settings[k] || ''])),
       } : c));
     }
   }, [settings]);
+
+  // ── Domain status ──────────────────────────────────────────────────
 
   const fetchStatus = async () => {
     try {
@@ -45,12 +87,21 @@ const Ddns = () => {
     if (settings?.ddns_domains) fetchStatus();
   }, [settings?.ddns_domains]);
 
+  // ── Config helpers ─────────────────────────────────────────────────
+
   const updateConfig = (id, field, value) => {
     setConfigs(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
   };
 
+  const handleProviderChange = (cfgId, newProvider) => {
+    setConfigs(prev => prev.map(c => {
+      if (c.id !== cfgId) return c;
+      return { ...clearCredentials(c), ddns_provider: newProvider };
+    }));
+  };
+
   const addConfig = () => {
-    setConfigs(prev => [...prev, { ...DEFAULT_CONFIG, id: Date.now(), isNew: true }]);
+    setConfigs(prev => [...prev, { ...makeDefaultConfig(), id: Date.now(), isNew: true }]);
   };
 
   const removeConfig = async (id, domainsStr) => {
@@ -67,18 +118,20 @@ const Ddns = () => {
     setConfigs(prev => prev.filter(c => c.id !== id));
   };
 
+  // ── Save ───────────────────────────────────────────────────────────
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Save first config (backward compat with current backend)
       const cfg = configs[0];
-      await updateSettings({
+      const payload = {
         ddns_enabled: cfg.ddns_enabled,
         ddns_provider: cfg.ddns_provider,
-        ddns_cf_token: cfg.ddns_cf_token,
-        ddns_cf_zone_id: cfg.ddns_cf_zone_id,
         ddns_domains: cfg.ddns_domains,
-      });
+      };
+      // Include all credential fields (backend stores whatever keys it receives)
+      for (const k of ALL_PROVIDER_KEYS) payload[k] = cfg[k] || '';
+      await updateSettings(payload);
       addToast(t('configSaved'), 'success');
       await fetchStatus();
     } catch (e) {
@@ -86,6 +139,8 @@ const Ddns = () => {
     }
     setSaving(false);
   };
+
+  // ── Domain actions ─────────────────────────────────────────────────
 
   const toggleDomain = async (domain) => {
     const current = domainStatuses.find(d => d.domain === domain);
@@ -103,7 +158,6 @@ const Ddns = () => {
     try {
       await api.ddnsDeleteDomain(domain);
       addToast(t('domainDeleted', { domain }), 'success');
-      // 同时从上方域名文本框中移除该域名
       const cfg = configs[0];
       const domains = (cfg.ddns_domains || '').split(/[\n,]/).map(d => d.trim()).filter(Boolean);
       updateConfig(cfg.id, 'ddns_domains', domains.filter(d => d !== domain).join('\n'));
@@ -112,6 +166,8 @@ const Ddns = () => {
       addToast(t('domainDeleteFailed', { domain, error: e.response?.data?.error || e.message }), 'error');
     }
   };
+
+  // ── Test connection ────────────────────────────────────────────────
 
   const [testLogs, setTestLogs] = useState([]);
   const [showTestModal, setShowTestModal] = useState(false);
@@ -159,6 +215,8 @@ const Ddns = () => {
     setFetchingZones(false);
   };
 
+  // ── Render ──────────────────────────────────────────────────────────
+
   return (
     <div className="fade-in">
       <header className="page-header">
@@ -180,7 +238,11 @@ const Ddns = () => {
         </div>
       </header>
       
-      {configs.map((cfg, idx) => (
+      {configs.map((cfg, idx) => {
+        const currentFields = PROVIDER_FIELDS[cfg.ddns_provider] || [];
+        const zoneField = currentFields.find(f => f.hasFetchZones);
+
+        return (
         <div key={cfg.id} className="glass-panel glass-card" style={{
           marginBottom: 12,
           ...(cfg.isNew ? { borderLeft: '3px solid var(--accent)', background: 'rgba(108,142,255,0.04)' } : {})
@@ -213,34 +275,59 @@ const Ddns = () => {
             <>
               <div className="form-group mb-3">
                 <label className="form-label">{t('ddnsProvider')}</label>
-                <select className="form-input" value={cfg.ddns_provider} onChange={e => updateConfig(cfg.id, 'ddns_provider', e.target.value)}>
-                  <option value="cloudflare">Cloudflare</option>
+                <select className="form-input" value={cfg.ddns_provider}
+                  onChange={e => handleProviderChange(cfg.id, e.target.value)}>
+                  {Object.entries(PROVIDER_LABELS).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
                 </select>
               </div>
 
-              <div className="form-group mb-3">
-                <label className="form-label">{t('apiToken')}</label>
-                <input type="password" className="form-input" value={cfg.ddns_cf_token} onChange={e => updateConfig(cfg.id, 'ddns_cf_token', e.target.value)} placeholder="Cloudflare API Token" />
-              </div>
-
-              <div className="form-group mb-3">
-                <label className="form-label">{t('zoneId')} <span style={{opacity:0.5,fontSize:12}}>({t('optional')})</span></label>
-                <div style={{display:'flex', gap:8}}>
-                  <input className="form-input" style={{flex:1}} value={cfg.ddns_cf_zone_id} onChange={e => updateConfig(cfg.id, 'ddns_cf_zone_id', e.target.value)} placeholder={t('leaveEmptyAuto')} />
-                  <button className="btn btn-primary btn-sm" onClick={() => handleFetchZones(cfg)} disabled={fetchingZones || !cfg.ddns_cf_token} type="button" style={{whiteSpace:'nowrap'}}>
-                    {fetchingZones ? t('fetching') : t('fetchZones')}
-                  </button>
+              {/* Dynamic credential fields */}
+              {currentFields.map(field => (
+                <div className="form-group mb-3" key={field.key}>
+                  <label className="form-label">
+                    {t(field.label)}
+                    {field.optional && <span style={{opacity:0.5,fontSize:12}}> ({t('optional')})</span>}
+                  </label>
+                  {field.hasFetchZones ? (
+                    <div style={{display:'flex', gap:8}}>
+                      <input
+                        className="form-input" style={{flex:1}}
+                        type={field.type}
+                        value={cfg[field.key] || ''}
+                        onChange={e => updateConfig(cfg.id, field.key, e.target.value)}
+                        placeholder={t(field.placeholder)}
+                      />
+                      <button className="btn btn-primary btn-sm"
+                        onClick={() => handleFetchZones(cfg)}
+                        disabled={fetchingZones || !(cfg.ddns_cf_token)}
+                        type="button" style={{whiteSpace:'nowrap'}}>
+                        {fetchingZones ? t('fetching') : t('fetchZones')}
+                      </button>
+                    </div>
+                  ) : (
+                    <input
+                      className="form-input"
+                      type={field.type}
+                      value={cfg[field.key] || ''}
+                      onChange={e => updateConfig(cfg.id, field.key, e.target.value)}
+                      placeholder={t(field.placeholder)}
+                    />
+                  )}
                 </div>
-              </div>
+              ))}
 
               <div className="form-group mb-4">
                 <label className="form-label">{t('domains')}</label>
-                <textarea className="form-input" rows={4} value={cfg.ddns_domains} onChange={e => updateConfig(cfg.id, 'ddns_domains', e.target.value)} placeholder="example.com&#10;*.example.com" style={{ resize: 'vertical' }} />
+                <textarea className="form-input" rows={4} value={cfg.ddns_domains}
+                  onChange={e => updateConfig(cfg.id, 'ddns_domains', e.target.value)}
+                  placeholder="example.com&#10;*.example.com" style={{ resize: 'vertical' }} />
               </div>
             </>
           )}
         </div>
-      ))}
+      )})}
 
       <div>
         {domainStatuses.length > 0 && (

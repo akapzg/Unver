@@ -43,6 +43,19 @@ impl AppState {
         let login_limiter = Arc::new(RateLimiter::direct(quota));
         Self { config, db, login_limiter, cert_cache: Arc::new(RwLock::new(HashMap::new())), background_jobs: Arc::new(tokio::sync::Mutex::new(HashMap::new())), background_job_logs: Arc::new(tokio::sync::Mutex::new(HashMap::new())), net_tracker, start_time: std::time::Instant::now() }
     }
+
+    /// In-memory dummy state for unit tests — no real DB, no network.
+    #[cfg(test)]
+    pub async fn dummy() -> Self {
+        use sqlx::sqlite::SqlitePoolOptions;
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("in-memory sqlite for test");
+        let net_tracker = Arc::new(tokio::sync::RwLock::new(crate::network::NetTracker::new()));
+        Self::new(Config::default(), db, net_tracker)
+    }
 }
 
 /// Ensures a JWT signing secret exists in the settings table.

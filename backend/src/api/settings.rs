@@ -27,6 +27,9 @@ pub async fn get_settings(
     let ddns_interval = get_setting(&state.db, "ddns_interval").await?.parse().unwrap_or(300);
     let ddns_ip_source = get_setting(&state.db, "ddns_ip_source").await.unwrap_or_else(|_| "public".to_string());
 
+    let ddns_aliyun_access_key_id = get_secret_setting(&state.db, "ddns_aliyun_access_key_id").await.unwrap_or_default();
+    let ddns_aliyun_access_key_secret = get_secret_setting(&state.db, "ddns_aliyun_access_key_secret").await.unwrap_or_default();
+
     let username = get_setting(&state.db, "username").await.unwrap_or_default();
     let web_port_str = get_setting(&state.db, "web_port").await.unwrap_or_default();
     let web_port: u16 = web_port_str.parse().unwrap_or(19688);
@@ -51,6 +54,8 @@ pub async fn get_settings(
         ddns_provider,
         ddns_cf_token: masked_token,
         ddns_cf_zone_id,
+        ddns_aliyun_access_key_id,
+        ddns_aliyun_access_key_secret,
         ddns_domain,
         ddns_domains,
         ddns_interval,
@@ -95,6 +100,16 @@ pub async fn update_settings(
     }
     if let Some(zone) = body.ddns_cf_zone_id {
         set_setting(&state.db, "ddns_cf_zone_id", &zone).await?;
+    }
+    if let Some(key_id) = body.ddns_aliyun_access_key_id {
+        if !key_id.is_empty() {
+            set_secret_setting(&state.db, "ddns_aliyun_access_key_id", &key_id).await?;
+        }
+    }
+    if let Some(secret) = body.ddns_aliyun_access_key_secret {
+        if !secret.is_empty() {
+            set_secret_setting(&state.db, "ddns_aliyun_access_key_secret", &secret).await?;
+        }
     }
     if let Some(domain) = body.ddns_domain {
         set_setting(&state.db, "ddns_domain", &domain).await?;
@@ -429,7 +444,7 @@ pub async fn import_config(
             let key = s["key"].as_str().unwrap_or("");
             let val = s["value"].as_str().unwrap_or("");
             if !key.is_empty()
-                && !matches!(key, "acme_account_key" | "setup_complete" | "jwt_secret" | "ddns_cf_token")
+                && !matches!(key, "acme_account_key" | "setup_complete" | "jwt_secret" | "ddns_cf_token" | "ddns_aliyun_access_key_secret")
                 && !key.starts_with("acme_challenge_")
             {
                 sqlx::query!(
@@ -578,9 +593,9 @@ pub async fn issue_certificate(
         return Err(AppError::BadRequest("ACME email not configured".to_string()));
     }
 
-    let cf_token = get_secret_setting(&state.db, "ddns_cf_token").await.unwrap_or_default();
-    if cf_token.is_empty() {
-        return Err(AppError::Internal(anyhow::anyhow!("Cloudflare API token required")));
+    let provider_name = get_setting(&state.db, "ddns_provider").await.unwrap_or_default();
+    if provider_name.is_empty() {
+        return Err(AppError::Internal(anyhow::anyhow!("DDNS provider not configured")));
     }
 
     let use_staging = get_setting(&state.db, "acme_staging").await.unwrap_or_default() == "true";
@@ -614,7 +629,8 @@ pub async fn issue_certificate(
     worker.issue(crate::ssl_worker::SslRequest {
         email,
         domains,
-        cf_token,
+        provider_name: provider_name.clone(),
+        state: Arc::clone(&state),
         use_staging,
         db: state.db.clone(),
         cert_cache: Arc::clone(&state.cert_cache),
@@ -770,7 +786,7 @@ pub async fn download_certificate(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    let key_pem = ssl::decrypt_key_from_db(&state.db, &row.key_pem).await?;
+    let key_pem: String = ssl::decrypt_key_from_db(&state.db, &row.key_pem).await?;
     Ok(Json(json!({
         "domain": row.domain,
         "cert_pem": row.cert_pem,

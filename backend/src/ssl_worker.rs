@@ -13,13 +13,12 @@ use sqlx::SqlitePool;
 pub struct SslRequest {
     pub email: String,
     pub domains: Vec<String>,
-    pub cf_token: String,
+    pub provider_name: String,
+    pub state: Arc<crate::state::AppState>,
     pub use_staging: bool,
     pub db: SqlitePool,
     pub cert_cache: Arc<std::sync::RwLock<HashMap<String, Arc<rustls::sign::CertifiedKey>>>>,
-    /// Channel to send the result back
     pub response: oneshot::Sender<Result<SslResult, String>>,
-    /// Optional log buffer for real-time progress in the UI
     pub log_buf: Option<Arc<tokio::sync::Mutex<Vec<crate::models::LogLine>>>>,
 }
 
@@ -73,7 +72,8 @@ pub fn spawn() -> Arc<SslWorkerHandle> {
                     crate::ssl::issue_certificate_sync(
                         &req.email,
                         &req.domains,
-                        &req.cf_token,
+                        &req.provider_name,
+                        &req.state,
                         req.use_staging,
                         &req.db,
                         &req.cert_cache,
