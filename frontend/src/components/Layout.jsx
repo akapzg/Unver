@@ -4,12 +4,15 @@ import { LayoutDashboard, Globe, Shield, Settings, LogOut, Sun, Moon, Github, La
 import { useStore } from '../store/useStore';
 import { useTheme } from '../store/ThemeContext';
 import { useTranslation } from 'react-i18next';
+import useIdleTimeout from '../hooks/useIdleTimeout';
+import { useToast } from './Toast';
 
 const Layout = () => {
   const { logout } = useStore();
   const navigate = useNavigate();
   const { isDark, toggle: toggleTheme } = useTheme();
   const { t, i18n } = useTranslation();
+  const { addToast } = useToast();
   const [topBarHidden, setTopBarHidden] = useState(false);
 
   useEffect(() => {
@@ -39,6 +42,15 @@ const Layout = () => {
     i18n.changeLanguage(next);
     localStorage.setItem('unver-lang', next);
   };
+
+  // Idle timeout: auto-logout after 15 min inactivity (warn 1 min before)
+  useIdleTimeout(15, async () => {
+    await logout();
+    addToast(t('idleLoggedOut'), 'info');
+    navigate('/login');
+  }, () => {
+    addToast(t('idleWarning'), 'warn');
+  });
 
   const handleLogout = async () => {
     await logout();
