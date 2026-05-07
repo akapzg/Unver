@@ -332,6 +332,40 @@ async fn serve_connection(
         .map(|buf| buf.first() == Some(&0x16))
         .unwrap_or(false);
 
+    // ── Non-TLS TCP tunnel (SSH, raw TCP, etc.) ────────────────────────
+    // For non-TLS connections, check if this port group has any TCP rule.
+    // No SNI available, so use the first matching TCP rule in the group.
+    if !is_tls {
+        let tcp_rule = sqlx::query!(
+            "SELECT target_url FROM proxy_rules WHERE port_group_id = ? AND rule_type = 'tcp' AND enabled = 1 LIMIT 1",
+            port_group_id
+        ).fetch_optional(&state.db).await;
+
+        if let Ok(Some(r)) = tcp_rule {
+            use tokio::io::AsyncWriteExt;
+            let buffered = buf_stream.buffer().to_vec();
+            let backend_addr = r.target_url.clone();
+            let mut client = buf_stream.into_inner();
+
+            match tokio::net::TcpStream::connect(&backend_addr).await {
+                Ok(mut backend) => {
+                    let _ = backend.write_all(&buffered).await;
+                    crate::logger::info(&state.db,
+                        &format!("TCP tunnel (plain): {} → {backend_addr}", peer.ip())).await;
+                    let _ = tokio::time::timeout(
+                        tokio::time::Duration::from_secs(300),
+                        tokio::io::copy_bidirectional(&mut client, &mut backend),
+                    ).await;
+                }
+                Err(e) => {
+                    crate::logger::error(&state.db,
+                        &format!("TCP backend {backend_addr}: {e}")).await;
+                }
+            }
+            return Ok(());
+        }
+    }
+
     if is_tls {
         // Extract SNI from buffered ClientHello for TCP rule matching
         let sni = buf_stream
