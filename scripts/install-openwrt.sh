@@ -22,17 +22,16 @@ ARCH=$(uname -m)
 case "$ARCH" in
     x86_64)  ARCH_NAME="amd64" ;;
     aarch64) ARCH_NAME="arm64" ;;
-    armv7l)  ARCH_NAME="arm64" ;;  # 32-bit ARM also use arm64 binary (compatible via kernel)
-    *) err "Unsupported architecture: $ARCH" ;;
+    *) err "Unsupported architecture: $ARCH. OpenWrt supports x86_64 and aarch64 only." ;;
 esac
 
 log "Detected: $ARCH ($ARCH_NAME)"
 
 # ── Download ───────────────────────────────────────────────────────────────
 if [ "$VERSION" = "latest" ]; then
-    URL="https://github.com/akapzg/Unver/releases/latest/download/unver-linux-${ARCH_NAME}.tar.gz"
+    URL="https://github.com/akapzg/Unver/releases/latest/download/unver-openwrt-${ARCH_NAME}.tar.gz"
 else
-    URL="https://github.com/akapzg/Unver/releases/download/v${VERSION}/unver-linux-${ARCH_NAME}.tar.gz"
+    URL="https://github.com/akapzg/Unver/releases/download/v${VERSION}/unver-openwrt-${ARCH_NAME}.tar.gz"
 fi
 
 TMPDIR=$(mktemp -d)

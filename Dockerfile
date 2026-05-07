@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# ── Multi-arch build: amd64 / arm64 / arm/v7 (OpenWRT) ─────────────────────
+# ── Multi-arch build: amd64 / arm64 ─────────────────────────────────────────
 
 # --- Frontend Build (runs on build host arch) ---
 FROM --platform=$BUILDPLATFORM node:20-alpine AS frontend-builder
@@ -19,9 +19,6 @@ RUN case "${TARGETPLATFORM}" in \
       "linux/arm64")   RUST_TARGET="aarch64-unknown-linux-gnu" ; \
                        echo "RUST_TARGET=${RUST_TARGET}" > /tmp/target.env ; \
                        echo "export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> /tmp/target.env ;; \
-      "linux/arm/v7")  RUST_TARGET="armv7-unknown-linux-gnueabihf" ; \
-                       echo "RUST_TARGET=${RUST_TARGET}" > /tmp/target.env ; \
-                       echo "export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc" >> /tmp/target.env ;; \
       *)               echo "Unsupported platform: ${TARGETPLATFORM}" && exit 1 ;; \
     esac && \
     rustup target add "${RUST_TARGET}"
@@ -30,8 +27,6 @@ RUN case "${TARGETPLATFORM}" in \
 RUN case "${TARGETPLATFORM}" in \
       "linux/arm64") \
         apt-get update && apt-get install -y gcc-aarch64-linux-gnu ;; \
-      "linux/arm/v7") \
-        apt-get update && apt-get install -y gcc-arm-linux-gnueabihf ;; \
     esac
 
 # Install build deps (perl + make for vendored OpenSSL, mold for fast x86_64 linking)

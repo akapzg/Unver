@@ -33,13 +33,13 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.PUBLIC_REPO_TOKEN }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ env.REGISTRY }}/akapzg/unver:${{ env.VERSION }}
@@ -59,6 +59,12 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             artifact: unver-linux-arm64
             display: Linux ARM64
+          - target: x86_64-unknown-linux-musl
+            artifact: unver-openwrt-amd64
+            display: OpenWrt x86_64
+          - target: aarch64-unknown-linux-musl
+            artifact: unver-openwrt-arm64
+            display: OpenWrt ARM64
     steps:
       - uses: actions/checkout@v4
 
@@ -76,9 +82,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
 
+      - name: Install musl deps (OpenWrt x86_64)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get install -y musl-tools
+
+      - name: Install musl deps (OpenWrt ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        run: |
+          curl -fsSL https://musl.cc/aarch64-linux-musl-cross.tgz | sudo tar -xz -C /usr/local
+          echo "/usr/local/aarch64-linux-musl-cross/bin" >> $GITHUB_PATH
+
       - name: Build backend
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: x86_64-linux-musl-gcc
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-musl-gcc
+          CC_x86_64_unknown_linux_musl: x86_64-linux-musl-gcc
+          CC_aarch64_unknown_linux_musl: aarch64-linux-musl-gcc
         run: |
           cd backend
           sudo apt-get install -y sqlite3
@@ -106,10 +126,16 @@ jobs:
       - name: Extract version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
-      - name: Download binary artifacts
+      - name: Download linux binary artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: unver-linux-*
+          path: dist
+
+      - name: Download openwrt binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: unver-openwrt-*
           path: dist
 
       - name: Sync public files to public repo
@@ -157,4 +183,6 @@ jobs:
           files: |
             dist/unver-linux-amd64/unver-linux-amd64.tar.gz
             dist/unver-linux-arm64/unver-linux-arm64.tar.gz
+            dist/unver-openwrt-amd64/unver-openwrt-amd64.tar.gz
+            dist/unver-openwrt-arm64/unver-openwrt-arm64.tar.gz
           token: ${{ secrets.PUBLIC_REPO_TOKEN }}
