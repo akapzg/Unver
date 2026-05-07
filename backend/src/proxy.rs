@@ -37,7 +37,7 @@ type ProxyBody = UnsyncBoxBody<Bytes, BoxError>;
 type ProxyClient = Client<hyper_rustls::HttpsConnector<HttpConnector>, ProxyBody>;
 
 /// Idle timeout: close connection when no frame transferred for this duration.
-const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
+const IDLE_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// Resolve real client IP: if peer is a trusted proxy, read from X-Forwarded-For
 fn real_client_ip(peer: std::net::SocketAddr, headers: &HeaderMap, trusted: &[std::net::IpAddr]) -> std::net::IpAddr {
