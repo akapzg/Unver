@@ -27,6 +27,8 @@ pub enum Commands {
     Status,
     /// Uninstall Unver — removes binary, static files, and init scripts (keeps data by default)
     Uninstall,
+    /// Reset the admin password (forgot password recovery)
+    ResetPassword,
 }
 
 /// Entry point — determine whether to run CLI command or start interactive menu / service.
@@ -36,7 +38,7 @@ pub async fn run() -> anyhow::Result<bool> {
     match cli.command {
         Some(Commands::Start) => {
             // Fall through to start service
-            return Ok(false);
+            Ok(false)
         }
         Some(Commands::Version) => {
             println!("unver v{}", CURRENT_VERSION);
@@ -56,6 +58,10 @@ pub async fn run() -> anyhow::Result<bool> {
         }
         Some(Commands::Uninstall) => {
             uninstall();
+            process::exit(0);
+        }
+        Some(Commands::ResetPassword) => {
+            reset_password().await?;
             process::exit(0);
         }
         None => {
@@ -80,16 +86,16 @@ async fn interactive_menu() -> anyhow::Result<()> {
     println!("  [3] Restart service");
     println!("  [4] Self-update");
     println!("  [5] Version");
-    println!("  [6] Uninstall");
+    println!("  [6] Reset admin password");
+    println!("  [7] Uninstall");
     println!("  [0] Exit");
     println!();
 
-    let choice = read_number("Select [0-6]: ");
+    let choice = read_number("Select [0-7]: ");
 
     match choice {
         1 => {
             println!("Starting Unver service...");
-            // Replace current process with `unver start`
             let current_exe = std::env::current_exe()?;
             let err = process::Command::new(current_exe)
                 .arg("start")
@@ -103,7 +109,8 @@ async fn interactive_menu() -> anyhow::Result<()> {
         3 => restart_service()?,
         4 => self_update().await?,
         5 => println!("unver v{}", CURRENT_VERSION),
-        6 => uninstall(),
+        6 => reset_password().await?,
+        7 => uninstall(),
         0 => println!("Bye!"),
         _ => eprintln!("Invalid choice"),
     }
@@ -392,8 +399,73 @@ fn find_unver_pids(exclude_path: &str, exclude_pid: u32) -> Vec<u32> {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Uninstall
+// Reset password
 // ════════════════════════════════════════════════════════════════════════════
+
+async fn reset_password() -> anyhow::Result<()> {
+    use std::io::{self, Write};
+    use sqlx::SqlitePool;
+
+    let config = crate::config::Config::load()?;
+    let db_path = config.database_path();
+
+    if !db_path.exists() {
+        anyhow::bail!("Database not found at {}. Is Unver installed?", db_path.display());
+    }
+
+    let db_url = format!("sqlite://{}?mode=rwc", db_path.display());
+    let pool = SqlitePool::connect(&db_url).await?;
+
+    // Find the admin user
+    let user = sqlx::query!("SELECT id, username FROM users LIMIT 1")
+        .fetch_optional(&pool)
+        .await?;
+
+    let (user_id, username) = match user {
+        Some(u) => (u.id.unwrap_or_default(), u.username),
+        None => {
+            anyhow::bail!("No admin user found. Run setup first.");
+        }
+    };
+
+    println!("Resetting password for admin user: {}", username);
+
+    // Prompt for new password
+    print!("New password (min 8 chars): ");
+    io::stdout().flush().ok();
+    let mut password = String::new();
+    io::stdin().read_line(&mut password)?;
+    let password = password.trim().to_string();
+
+    print!("Confirm password: ");
+    io::stdout().flush().ok();
+    let mut confirm = String::new();
+    io::stdin().read_line(&mut confirm)?;
+
+    if password != confirm.trim() {
+        println!("Passwords do not match.");
+        return Ok(());
+    }
+
+    if password.len() < 8 {
+        println!("Password must be at least 8 characters.");
+        return Ok(());
+    }
+
+    let password_hash = crate::security::hash_password(&password)?;
+    sqlx::query!("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?",
+        password_hash, user_id)
+        .execute(&pool)
+        .await?;
+
+    // Invalidate all refresh tokens
+    sqlx::query!("DELETE FROM refresh_tokens WHERE user_id = ?", user_id)
+        .execute(&pool)
+        .await?;
+
+    println!("Password reset successfully. You can now log in with the new password.");
+    Ok(())
+}
 
 fn uninstall() {
     println!("Uninstalling Unver...");
@@ -445,18 +517,16 @@ fn uninstall() {
 
     // 3. Remove binary and static files
     let binary = exe_dir.join("unver");
-    if binary.exists() {
-        if std::fs::remove_file(&binary).is_ok() {
+    if binary.exists()
+        && std::fs::remove_file(&binary).is_ok() {
             println!("Removed: {}", binary.display());
         }
-    }
 
     let static_dir = exe_dir.join("static");
-    if static_dir.exists() {
-        if std::fs::remove_dir_all(&static_dir).is_ok() {
+    if static_dir.exists()
+        && std::fs::remove_dir_all(&static_dir).is_ok() {
             println!("Removed: {}", static_dir.display());
         }
-    }
 
     println!();
     println!("Uninstall complete.");

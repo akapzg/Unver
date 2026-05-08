@@ -16,7 +16,7 @@ use crate::{
 pub async fn list(State(state): State<Arc<AppState>>) -> AppResult<Json<Vec<ProxyRule>>> {
     let rows = sqlx::query!(
         r#"SELECT id, name, domain, target_url, rule_type, redirect_code, port_group_id,
-           ssl_enabled, force_https, enabled, status,
+           ssl_enabled, cert_id, force_https, enabled, status,
            last_checked_at, created_at, updated_at
            FROM proxy_rules ORDER BY created_at DESC"#
     )
@@ -31,6 +31,7 @@ pub async fn list(State(state): State<Arc<AppState>>) -> AppResult<Json<Vec<Prox
         rule_type: r.rule_type,
         redirect_code: r.redirect_code,
         port_group_id: r.port_group_id,
+        cert_id: r.cert_id,
         ssl_enabled: r.ssl_enabled != 0,
         force_https: r.force_https != 0,
         enabled: r.enabled != 0,
@@ -49,7 +50,7 @@ pub async fn get(
 ) -> AppResult<Json<ProxyRule>> {
     let row = sqlx::query!(
         r#"SELECT id, name, domain, target_url, rule_type, redirect_code, port_group_id,
-           ssl_enabled, force_https, enabled, status,
+           ssl_enabled, cert_id, force_https, enabled, status,
            last_checked_at, created_at, updated_at
            FROM proxy_rules WHERE id = ?"#,
         id
@@ -66,6 +67,7 @@ pub async fn get(
         rule_type: row.rule_type,
         redirect_code: row.redirect_code,
         port_group_id: row.port_group_id,
+        cert_id: row.cert_id,
         ssl_enabled: row.ssl_enabled != 0,
         force_https: row.force_https != 0,
         enabled: row.enabled != 0,
@@ -87,17 +89,17 @@ pub async fn create(
     let id = uuid::Uuid::new_v4().to_string();
 
     sqlx::query!(
-        "INSERT INTO proxy_rules (id, name, domain, target_url, rule_type, redirect_code, port_group_id, ssl_enabled, force_https, enabled)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO proxy_rules (id, name, domain, target_url, rule_type, redirect_code, port_group_id, ssl_enabled, cert_id, force_https, enabled)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         id, body.name, body.domain, body.target_url, body.rule_type, body.redirect_code, body.port_group_id,
-        body.ssl_enabled, body.force_https, body.enabled
+        body.ssl_enabled, body.cert_id, body.force_https, body.enabled
     )
     .execute(&state.db)
     .await?;
 
     let row = sqlx::query!(
         r#"SELECT id, name, domain, target_url, rule_type, redirect_code, port_group_id,
-           ssl_enabled, force_https, enabled, status,
+           ssl_enabled, cert_id, force_https, enabled, status,
            last_checked_at, created_at, updated_at
            FROM proxy_rules WHERE id = ?"#,
         id
@@ -113,6 +115,7 @@ pub async fn create(
         rule_type: row.rule_type,
         redirect_code: row.redirect_code,
         port_group_id: row.port_group_id,
+        cert_id: row.cert_id,
         ssl_enabled: row.ssl_enabled != 0,
         force_https: row.force_https != 0,
         enabled: row.enabled != 0,
@@ -153,6 +156,8 @@ pub async fn update(
     if let Some(ssl) = body.ssl_enabled {
         sqlx::query!("UPDATE proxy_rules SET ssl_enabled = ?, updated_at = datetime('now') WHERE id = ?", ssl, id)
             .execute(&state.db).await?;
+        // Refresh cert cache — turning SSL on/off affects which domains get certs
+        let _ = crate::ssl::load_certs_to_cache(&state).await;
     }
     if let Some(force) = body.force_https {
         sqlx::query!("UPDATE proxy_rules SET force_https = ?, updated_at = datetime('now') WHERE id = ?", force, id)
@@ -169,6 +174,12 @@ pub async fn update(
     if let Some(ref rt) = body.rule_type {
         sqlx::query!("UPDATE proxy_rules SET rule_type = ?, updated_at = datetime('now') WHERE id = ?", rt, id)
             .execute(&state.db).await?;
+    }
+    if let Some(cert_id) = body.cert_id {
+        sqlx::query!("UPDATE proxy_rules SET cert_id = ?, updated_at = datetime('now') WHERE id = ?", cert_id, id)
+            .execute(&state.db).await?;
+        // Refresh cert cache to apply cert_id → rule-domain mappings
+        let _ = crate::ssl::load_certs_to_cache(&state).await;
     }
     if let Some(code) = body.redirect_code {
         sqlx::query!("UPDATE proxy_rules SET redirect_code = ?, updated_at = datetime('now') WHERE id = ?", code, id)

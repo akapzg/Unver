@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, name, domain, target_url, rule_type, redirect_code, port_group_id,\n           ssl_enabled, force_https, enabled, status,\n           last_checked_at, created_at, updated_at\n           FROM proxy_rules WHERE id = ?",
+  "query": "SELECT id, name, domain, target_url, rule_type, redirect_code, port_group_id,\n           ssl_enabled, cert_id, force_https, enabled, status,\n           last_checked_at, created_at, updated_at\n           FROM proxy_rules ORDER BY created_at DESC",
   "describe": {
     "columns": [
       {
@@ -44,38 +44,43 @@
         "type_info": "Int64"
       },
       {
-        "name": "force_https",
+        "name": "cert_id",
         "ordinal": 8,
-        "type_info": "Int64"
+        "type_info": "Text"
       },
       {
-        "name": "enabled",
+        "name": "force_https",
         "ordinal": 9,
         "type_info": "Int64"
       },
       {
-        "name": "status",
+        "name": "enabled",
         "ordinal": 10,
-        "type_info": "Text"
+        "type_info": "Int64"
       },
       {
-        "name": "last_checked_at",
+        "name": "status",
         "ordinal": 11,
         "type_info": "Text"
       },
       {
-        "name": "created_at",
+        "name": "last_checked_at",
         "ordinal": 12,
         "type_info": "Text"
       },
       {
-        "name": "updated_at",
+        "name": "created_at",
         "ordinal": 13,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 14,
         "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
       true,
@@ -86,6 +91,7 @@
       true,
       true,
       false,
+      true,
       false,
       false,
       false,
@@ -94,5 +100,5 @@
       false
     ]
   },
-  "hash": "2391efc02f6da17cc796c6a2a9c87d797e34493f96dbf4d4e11ed88965d9036a"
+  "hash": "aca95743e7abec8111c92e1f661d4d16a01dc187a2c885ee85b8cc5fd4ec7235"
 }

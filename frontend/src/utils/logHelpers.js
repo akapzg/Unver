@@ -5,7 +5,7 @@ export const logStyle = (level) => {
   switch (level) {
     case 'success': return { color: 'var(--success)' };
     case 'error':   return { color: 'var(--danger)' };
-    default:        return { opacity: 0.7 };
+    default:        return { color: 'var(--text-secondary)', opacity: 0.85 };
   }
 };
 

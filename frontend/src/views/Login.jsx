@@ -42,6 +42,11 @@ const Login = () => {
         <p className="auth-subtitle">{t('loginTitle')}</p>
         
         {error && <div className="auth-error">{error}</div>}
+        {error && (
+          <p className="text-sm" style={{ marginTop: 8, opacity: 0.7 }}>
+            {t('forgotPasswordHint')}
+          </p>
+        )}
         
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="form-group">

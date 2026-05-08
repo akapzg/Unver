@@ -50,13 +50,14 @@ curl -fsSL https://raw.githubusercontent.com/akapzg/Unver/main/scripts/install-o
 ## 🖥 命令行
 
 ```bash
-unver         # 交互式菜单
-unver start   # 启动服务
-unver version # 显示版本
-unver update  # 自动更新到最新版
-unver restart # 重启服务
-unver status  # 检查运行状态
-unver uninstall # 一键卸载（保留数据）
+unver               # 交互式菜单
+unver start         # 启动服务
+unver version       # 显示版本
+unver update        # 自动更新到最新版
+unver restart       # 重启服务
+unver status        # 检查运行状态
+unver reset-password  # 重置管理员密码（忘记密码恢复）
+unver uninstall     # 一键卸载（保留数据）
 ```
 
 ---

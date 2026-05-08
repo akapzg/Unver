@@ -90,6 +90,7 @@ pub async fn list_rules(
         rule_type: r.rule_type,
         redirect_code: r.redirect_code,
         port_group_id: r.port_group_id,
+        cert_id: None,
         ssl_enabled: r.ssl_enabled != 0,
         force_https: r.force_https != 0,
         enabled: r.enabled != 0,
@@ -152,19 +153,26 @@ pub async fn update(
             .execute(&state.db).await?;
     }
     if let Some(port) = body.listen_port {
-        if port < 1 || port > 65535 {
+        if !(1..=65535).contains(&port) {
             return Err(AppError::BadRequest("Port must be 1-65535".into()));
         }
-        // DB check: port not taken by another group
-        let conflict = sqlx::query!(
-            "SELECT id FROM port_groups WHERE listen_port = ? AND id != ?", port, id
-        ).fetch_optional(&state.db).await?;
-        if conflict.is_some() {
-            return Err(AppError::BadRequest(format!("Port {} is already in use", port)));
+        // Fetch current port to know if it changed
+        let current = sqlx::query!("SELECT listen_port FROM port_groups WHERE id = ?", id)
+            .fetch_optional(&state.db).await?
+            .ok_or(AppError::NotFound)?;
+        let port_changed = port != current.listen_port;
+        if port_changed {
+            // DB check: port not taken by another group
+            let conflict = sqlx::query!(
+                "SELECT id FROM port_groups WHERE listen_port = ? AND id != ?", port, id
+            ).fetch_optional(&state.db).await?;
+            if conflict.is_some() {
+                return Err(AppError::BadRequest(format!("Port {} is already in use", port)));
+            }
+            // OS check: port must be bindable
+            TcpListener::bind(format!("0.0.0.0:{}", port))
+                .map_err(|_| AppError::BadRequest(format!("Port {} is occupied by another process", port)))?;
         }
-        // OS check: port must be bindable
-        TcpListener::bind(format!("0.0.0.0:{}", port))
-            .map_err(|_| AppError::BadRequest(format!("Port {} is occupied by another process", port)))?;
         sqlx::query!("UPDATE port_groups SET listen_port = ?, updated_at = datetime('now') WHERE id = ?", port, id)
             .execute(&state.db).await?;
     }

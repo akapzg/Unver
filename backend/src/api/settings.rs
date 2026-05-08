@@ -128,6 +128,14 @@ pub async fn update_settings(
         set_setting(&state.db, "ddns_domains", &domains).await?;
     }
     if let Some(port) = body.web_port {
+        // Check if port is available when it actually changes
+        let current_port_str = get_setting(&state.db, "web_port").await.unwrap_or_else(|_| "19688".to_string());
+        let current_port: u16 = current_port_str.parse().unwrap_or(19688);
+        if port != current_port {
+            use std::net::TcpListener;
+            TcpListener::bind(format!("0.0.0.0:{}", port))
+                .map_err(|_| AppError::BadRequest(format!("Port {} is occupied by another process", port)))?;
+        }
         set_setting(&state.db, "web_port", &port.to_string()).await?;
     }
     if let Some(iface) = body.web_interface {
@@ -313,12 +321,14 @@ pub async fn list_logs(
 }
 
 /// GET /api/system/backup
-/// Returns a JSON containing proxy rules and non-sensitive settings.
+/// Returns a JSON containing port groups, proxy rules, certificates, and non-sensitive settings.
 pub async fn export_config(
     State(state): State<Arc<AppState>>,
     Extension(_user): Extension<AuthUser>,
 ) -> AppResult<Json<serde_json::Value>> {
     let rules = sqlx::query!("SELECT * FROM proxy_rules").fetch_all(&state.db).await?;
+    let port_groups = sqlx::query!("SELECT * FROM port_groups").fetch_all(&state.db).await?;
+    let certs = sqlx::query!("SELECT id, domain, cert_pem, key_pem, expires_at, auto_renew, source FROM certificates").fetch_all(&state.db).await?;
     let settings = sqlx::query!("SELECT * FROM settings").fetch_all(&state.db).await?;
     let sensitive_settings = [
         "jwt_secret",
@@ -327,14 +337,46 @@ pub async fn export_config(
         "acme_challenge_",
     ];
 
-    // Create a simple JSON backup
+    // Decrypt certificate keys for export (they are encrypted in DB)
+    let mut cert_entries = Vec::new();
+    for c in &certs {
+        let key_pem = crate::ssl::decrypt_key_from_db(&state.db, &c.key_pem).await.unwrap_or_else(|_| c.key_pem.clone());
+        cert_entries.push(json!({
+            "id": c.id,
+            "domain": c.domain,
+            "cert_pem": c.cert_pem,
+            "key_pem": key_pem,
+            "expires_at": c.expires_at,
+            "auto_renew": c.auto_renew,
+            "source": c.source,
+        }));
+    }
+
     let backup = json!({
         "version": env!("CARGO_PKG_VERSION"),
         "timestamp": chrono::Utc::now().to_rfc3339(),
-        "proxy_rules": rules.iter().map(|r| json!({
-            "name": &r.name, "domain": &r.domain, "target_url": &r.target_url,
-            "ssl_enabled": r.ssl_enabled, "force_https": r.force_https, "enabled": r.enabled
+        "port_groups": port_groups.iter().map(|g| json!({
+            "id": g.id,
+            "name": g.name,
+            "listen_port": g.listen_port,
+            "enabled": g.enabled,
+            "skip_tls_verify": g.skip_tls_verify,
+            "force_https": g.force_https,
         })).collect::<Vec<_>>(),
+        "proxy_rules": rules.iter().map(|r| json!({
+            "id": r.id,
+            "port_group_id": r.port_group_id,
+            "name": r.name,
+            "domain": r.domain,
+            "target_url": r.target_url,
+            "rule_type": r.rule_type,
+            "redirect_code": r.redirect_code,
+            "cert_id": r.cert_id,
+            "ssl_enabled": r.ssl_enabled,
+            "force_https": r.force_https,
+            "enabled": r.enabled,
+        })).collect::<Vec<_>>(),
+        "certificates": cert_entries,
         "settings": settings.iter()
             .filter(|s| {
                 let key = s.key.as_deref().unwrap_or("");
@@ -370,69 +412,105 @@ pub async fn restart_service(
 }
 
 /// POST /api/system/restore
-/// Imports proxy rules and non-sensitive settings.
-/// Existing proxy rules are replaced; settings are upserted.
+/// Imports port groups, proxy rules, certificates, and non-sensitive settings.
+/// Port groups are upserted by id; proxy rules are replaced entirely;
+/// certificates are upserted by id (re-encrypted on import).
 pub async fn import_config(
     State(state): State<Arc<AppState>>,
     Extension(_user): Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
 ) -> AppResult<Json<serde_json::Value>> {
-    // Validate structure
     let rules = body["proxy_rules"].as_array();
+    let port_groups_arr = body["port_groups"].as_array();
+    let certs_arr = body["certificates"].as_array();
     let settings_arr = body["settings"].as_array();
-    if rules.is_none() && settings_arr.is_none() {
+
+    if rules.is_none() && port_groups_arr.is_none() && certs_arr.is_none() && settings_arr.is_none() {
         return Err(AppError::BadRequest(
-            "Backup must contain at least 'proxy_rules' or 'settings' array".to_string(),
+            "Backup must contain at least one of: port_groups, proxy_rules, certificates, settings".to_string(),
         ));
     }
 
     let mut tx = state.db.begin().await?;
 
-    // Import proxy rules: clear existing first, then insert (prevents duplicates)
+    // 1. Import port groups (upsert by id — preserve existing IDs)
+    let mut pg_count = 0i64;
+    if let Some(groups) = port_groups_arr {
+        for g in groups {
+            let id = g["id"].as_str().unwrap_or("");
+            let name = g["name"].as_str().unwrap_or("");
+            if id.is_empty() || name.is_empty() { continue; }
+            let port = g["listen_port"].as_i64().unwrap_or(8443);
+            let enabled = g["enabled"].as_i64().unwrap_or(0);
+            let skip_tls = g["skip_tls_verify"].as_i64().unwrap_or(0);
+            let force = g["force_https"].as_i64().unwrap_or(0);
+            sqlx::query!(
+                "INSERT OR REPLACE INTO port_groups (id, name, listen_port, enabled, skip_tls_verify, force_https, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, datetime('now'))",
+                id, name, port, enabled, skip_tls, force
+            ).execute(&mut *tx).await?;
+            pg_count += 1;
+        }
+    }
+
+    // 2. Import certificates (upsert by id, re-encrypt key_pem)
+    let mut cert_count = 0i64;
+    if let Some(certs) = certs_arr {
+        for c in certs {
+            let id = c["id"].as_str().unwrap_or("");
+            let domain = c["domain"].as_str().unwrap_or("");
+            let cert_pem = c["cert_pem"].as_str().unwrap_or("");
+            let key_pem = c["key_pem"].as_str().unwrap_or("");
+            let expires_at = c["expires_at"].as_str().unwrap_or("");
+            let auto_renew = c["auto_renew"].as_i64().unwrap_or(1);
+            let source = c["source"].as_str().unwrap_or("acme");
+
+            if id.is_empty() || domain.is_empty() || cert_pem.is_empty() || key_pem.is_empty() { continue; }
+
+            let encrypted_key = crate::ssl::encrypt_key_for_db(&state.db, key_pem).await?;
+            sqlx::query!(
+                "INSERT OR REPLACE INTO certificates (id, domain, cert_pem, key_pem, expires_at, auto_renew, source, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+                id, domain, cert_pem, encrypted_key, expires_at, auto_renew, source
+            ).execute(&mut *tx).await?;
+            cert_count += 1;
+        }
+    }
+
+    // 3. Import proxy rules: clear existing first, then insert full fields
+    let mut rule_count = 0i64;
     if let Some(rules) = rules {
         sqlx::query!("DELETE FROM proxy_rules")
             .execute(&mut *tx)
             .await?;
 
         for r in rules {
-            let name = r["name"]
-                .as_str()
-                .ok_or_else(|| AppError::BadRequest("Invalid proxy rule: missing name".to_string()))?;
-            let domain = r["domain"]
-                .as_str()
-                .ok_or_else(|| AppError::BadRequest("Invalid proxy rule: missing domain".to_string()))?;
-            let target_url = r["target_url"]
-                .as_str()
-                .ok_or_else(|| AppError::BadRequest("Invalid proxy rule: missing target_url".to_string()))?;
+            let name = r["name"].as_str().unwrap_or("");
+            let domain = r["domain"].as_str().unwrap_or("");
+            let target_url = r["target_url"].as_str().unwrap_or("");
+            if name.is_empty() || domain.is_empty() || target_url.is_empty() { continue; }
 
-            // Validate fields before inserting
-            if name.is_empty() || domain.is_empty() || target_url.is_empty() {
-                return Err(AppError::BadRequest(
-                    format!("Invalid proxy rule: name/domain/target_url must not be empty")
-                ));
-            }
+            let id = r["id"].as_str().unwrap_or("");
+            if id.is_empty() { continue; }
+            let port_group_id: Option<String> = r["port_group_id"].as_str().map(|s| s.to_string());
+            let rule_type = r["rule_type"].as_str().unwrap_or("proxy");
+            let redirect_code = r["redirect_code"].as_i64();
+            let cert_id: Option<String> = r["cert_id"].as_str().map(|s| s.to_string());
+            let ssl = r["ssl_enabled"].as_i64().unwrap_or(0);
+            let force = r["force_https"].as_i64().unwrap_or(0);
+            let en = r["enabled"].as_i64().unwrap_or(1);
 
-            let id = uuid::Uuid::new_v4().to_string();
-            let ssl = r["ssl_enabled"].as_bool().unwrap_or(false);
-            let force = r["force_https"].as_bool().unwrap_or(false);
-            let en = r["enabled"].as_bool().unwrap_or(true);
             sqlx::query!(
-                "INSERT INTO proxy_rules (id, name, domain, target_url, ssl_enabled, force_https, enabled)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)",
-                id,
-                name,
-                domain,
-                target_url,
-                ssl,
-                force,
-                en,
-            )
-            .execute(&mut *tx)
-            .await?;
+                "INSERT INTO proxy_rules (id, port_group_id, name, domain, target_url, rule_type, redirect_code, cert_id, ssl_enabled, force_https, enabled)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                id, port_group_id, name, domain, target_url, rule_type, redirect_code, cert_id, ssl, force, en
+            ).execute(&mut *tx).await?;
+            rule_count += 1;
         }
     }
 
-    // Import settings (upsert, skip sensitive keys)
+    // 4. Import settings (upsert, skip sensitive keys)
+    let mut setting_count = 0i64;
     if let Some(settings_arr) = settings_arr {
         for s in settings_arr {
             let key = s["key"].as_str().unwrap_or("");
@@ -442,26 +520,32 @@ pub async fn import_config(
                 && !key.starts_with("acme_challenge_")
             {
                 sqlx::query!(
-                    "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-                    key,
-                    val
-                )
-                .execute(&mut *tx)
-                .await?;
+                    "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))",
+                    key, val
+                ).execute(&mut *tx).await?;
+                setting_count += 1;
             }
         }
     }
 
+    // 5. Refresh certificate cache after import (important for new certs)
+    if cert_count > 0 {
+        let _ = crate::ssl::load_certs_to_cache(&state).await;
+    }
+
     tx.commit().await?;
 
-    let imported_rules = rules.map(|r| r.len()).unwrap_or(0);
-    let imported_settings = settings_arr.map(|s| s.len()).unwrap_or(0);
-    tracing::info!("Config imported: {imported_rules} rules, {imported_settings} settings");
+    tracing::info!("Config imported: {pg_count} port groups, {cert_count} certs, {rule_count} rules, {setting_count} settings");
+    crate::logger::info(&state.db, &format!(
+        "CONFIG IMPORTED: {pg_count} port groups, {cert_count} certs, {rule_count} rules, {setting_count} settings"
+    )).await;
 
     Ok(Json(json!({
         "message": "Import successful",
-        "proxy_rules_imported": imported_rules,
-        "settings_imported": imported_settings,
+        "port_groups_imported": pg_count,
+        "certificates_imported": cert_count,
+        "proxy_rules_imported": rule_count,
+        "settings_imported": setting_count,
     })))
 }
 
@@ -709,13 +793,13 @@ pub async fn delete_certificate(
     sqlx::query!("DELETE FROM certificates WHERE id = ?", id)
         .execute(&state.db).await?;
 
-    // Disable SSL on all proxy rules using this certificate
-    sqlx::query!("UPDATE proxy_rules SET ssl_enabled = 0, updated_at = datetime('now') WHERE domain = ?", domain)
+    // Disable SSL and clear cert_id on all proxy rules using this certificate
+    sqlx::query!("UPDATE proxy_rules SET ssl_enabled = 0, cert_id = NULL, updated_at = datetime('now') WHERE domain = ?", domain)
         .execute(&state.db).await?;
 
     // Remove from TLS cache
     if let Ok(mut cache) = state.cert_cache.write() {
-        cache.remove(&domain);
+        cache.remove(&domain.to_lowercase());
     }
 
     // Clean up _acme-challenge TXT records from Cloudflare (best-effort)
@@ -768,12 +852,8 @@ pub async fn upload_certificate(
         id, domain, cert_pem, encrypted_key, expires_at
     ).execute(&state.db).await?;
 
-    // Push into live SNI cache immediately (no restart needed)
-    if let Ok(ck) = ssl::load_cert_into_cache(&cert_pem, &key_pem) {
-        if let Ok(mut cache) = state.cert_cache.write() {
-            cache.insert(domain.clone(), Arc::new(ck));
-        }
-    }
+    // Refresh cert cache (only inserts for rules with ssl_enabled=true)
+    let _ = ssl::load_certs_to_cache(&state).await;
 
     crate::logger::info(&state.db, &format!("Certificate uploaded for {} (manual)", domain)).await;
     Ok(Json(json!({ "message": "Certificate uploaded", "id": id, "domain": domain, "expires_at": expires_at })))
@@ -923,19 +1003,13 @@ pub async fn public_ip(
 
 async fn detect_ip_with_source(client: &reqwest::Client, endpoints: &[&str], require_colon: bool) -> (Option<String>, Option<String>) {
     for url in endpoints {
-        match client.get(*url).send().await {
-            Ok(resp) => match resp.text().await {
-                Ok(body) => {
-                    let ip = body.trim().to_string();
-                    if !ip.is_empty() && ip.chars().all(|c| c.is_ascii_digit() || c == '.' || c == ':') {
-                        if require_colon && !ip.contains(':') { continue; }
-                        return (Some(ip), Some(url.to_string()));
-                    }
-                }
-                Err(_) => {}
-            },
-            Err(_) => {}
-        }
+        if let Ok(resp) = client.get(*url).send().await { if let Ok(body) = resp.text().await {
+            let ip = body.trim().to_string();
+            if !ip.is_empty() && ip.chars().all(|c| c.is_ascii_digit() || c == '.' || c == ':') {
+                if require_colon && !ip.contains(':') { continue; }
+                return (Some(ip), Some(url.to_string()));
+            }
+        } }
     }
     (None, None)
 }
@@ -1071,7 +1145,7 @@ pub async fn test_certificate_setup(
     // Check overall readiness
     let ready = results["acme_configured"].as_bool() == Some(true)
         && results["letsencrypt_reachable"].as_bool() == Some(true)
-        && (!domain.is_empty() || true);
+        && (domain.is_empty() || results["domain_reachable"].as_bool() == Some(true));
     results["ready"] = json!(ready);
 
     Ok(Json(results))
@@ -1158,7 +1232,7 @@ pub async fn check_update() -> AppResult<Json<serde_json::Value>> {
 
 /// POST /api/system/update
 pub async fn perform_update(
-    State(state): State<Arc<AppState>>,
+    State(_state): State<Arc<AppState>>,
     Extension(_user): Extension<AuthUser>,
 ) -> AppResult<Json<serde_json::Value>> {
     let in_container = Path::new("/.dockerenv").exists()
@@ -1174,7 +1248,6 @@ pub async fn perform_update(
     }
 
     // Bare metal: spawn self-update in background
-    let _state = state.clone();
     tokio::spawn(async move {
         if let Err(e) = crate::cli::self_update_programmatic().await {
             tracing::error!("Self-update failed: {e}");

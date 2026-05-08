@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO port_groups (id, name, listen_port, enabled, skip_tls_verify, force_https, updated_at)\n                 VALUES (?, ?, ?, ?, ?, ?, datetime('now'))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "d33cc6af33084b08f9058d9b82be172c030195ea272130c5c5b571f702eae5d2"
+}

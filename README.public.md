@@ -56,6 +56,7 @@ unver version # Show version
 unver update  # Self-update to latest release
 unver restart # Restart the service
 unver status  # Check if running
+unver reset-password  # Reset admin password (forgotten password recovery)
 unver uninstall # Uninstall (preserves data)
 ```
 

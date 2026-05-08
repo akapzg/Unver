@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO certificates (id, domain, cert_pem, key_pem, expires_at, auto_renew, source, updated_at)\n                 VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "f8ebb62f1bc192f88daf7f709b54303e0a599967fc37bc4a2773a434422e9902"
+}

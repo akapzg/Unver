@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE proxy_rules SET ssl_enabled = 0, cert_id = NULL, updated_at = datetime('now') WHERE domain = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "690d2af512798b20309ec873e93d53a9d353af005e2ed963a633a0738619733e"
+}

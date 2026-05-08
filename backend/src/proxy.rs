@@ -2,6 +2,9 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::collections::HashMap;
 use std::time::Duration;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use axum::http::{
     header::{
         CONNECTION, HOST, LOCATION, PROXY_AUTHENTICATE, PROXY_AUTHORIZATION, TE, TRAILER,
@@ -9,7 +12,7 @@ use axum::http::{
         SEC_WEBSOCKET_PROTOCOL, SEC_WEBSOCKET_EXTENSIONS, SEC_WEBSOCKET_VERSION,
         STRICT_TRANSPORT_SECURITY,
     },
-    HeaderMap, HeaderName, Request, Response, StatusCode,
+    HeaderMap, HeaderName, Request, Response, StatusCode, Uri,
 };
 use bytes::Bytes;
 use futures_util::StreamExt;
@@ -20,7 +23,8 @@ use hyper::server::conn::{http1, http2};
 use hyper::service::service_fn;
 use hyper_util::client::legacy::{connect::HttpConnector, Client};
 use hyper_util::rt::{TokioExecutor, TokioIo};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
+use tokio::net::TcpStream;
 use rustls::server::{ClientHello, ResolvesServerCert};
 use rustls::crypto::ring;
 use rustls::sign::CertifiedKey;
@@ -34,7 +38,151 @@ use crate::{errors::AppResult, state::AppState, errors::AppError};
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 type ProxyBody = UnsyncBoxBody<Bytes, BoxError>;
-type ProxyClient = Client<hyper_rustls::HttpsConnector<HttpConnector>, ProxyBody>;
+
+/// Unified TLS/plain stream for hyper connection pool.
+enum MaybeTlsStream {
+    Plain(TcpStream),
+    Tls(Box<tokio_native_tls::TlsStream<TcpStream>>),
+}
+
+impl hyper::rt::Read for MaybeTlsStream {
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, mut buf: hyper::rt::ReadBufCursor<'_>) -> Poll<std::io::Result<()>> {
+        let n = unsafe {
+            let mut tbuf = tokio::io::ReadBuf::uninit(buf.as_mut());
+            match match &mut *self {
+                MaybeTlsStream::Plain(s) => Pin::new(s).poll_read(cx, &mut tbuf),
+                MaybeTlsStream::Tls(s) => Pin::new(s).poll_read(cx, &mut tbuf),
+            } {
+                Poll::Ready(Ok(())) => tbuf.filled().len(),
+                other => return other,
+            }
+        };
+        unsafe { buf.advance(n); }
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl hyper::rt::Write for MaybeTlsStream {
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
+        match &mut *self {
+            MaybeTlsStream::Plain(s) => Pin::new(s).poll_write(cx, buf),
+            MaybeTlsStream::Tls(s) => Pin::new(s).poll_write(cx, buf),
+        }
+    }
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match &mut *self {
+            MaybeTlsStream::Plain(s) => Pin::new(s).poll_flush(cx),
+            MaybeTlsStream::Tls(s) => Pin::new(s).poll_flush(cx),
+        }
+    }
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match &mut *self {
+            MaybeTlsStream::Plain(s) => Pin::new(s).poll_shutdown(cx),
+            MaybeTlsStream::Tls(s) => Pin::new(s).poll_shutdown(cx),
+        }
+    }
+    fn is_write_vectored(&self) -> bool {
+        match self {
+            MaybeTlsStream::Plain(s) => s.is_write_vectored(),
+            MaybeTlsStream::Tls(s) => s.is_write_vectored(),
+        }
+    }
+    fn poll_write_vectored(mut self: Pin<&mut Self>, cx: &mut Context<'_>, bufs: &[std::io::IoSlice<'_>]) -> Poll<std::io::Result<usize>> {
+        match &mut *self {
+            MaybeTlsStream::Plain(s) => Pin::new(s).poll_write_vectored(cx, bufs),
+            MaybeTlsStream::Tls(s) => Pin::new(s).poll_write_vectored(cx, bufs),
+        }
+    }
+}
+
+impl hyper_util::client::legacy::connect::Connection for MaybeTlsStream {
+    fn connected(&self) -> hyper_util::client::legacy::connect::Connected {
+        hyper_util::client::legacy::connect::Connected::new()
+    }
+}
+
+impl tokio::io::AsyncRead for MaybeTlsStream {
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut tokio::io::ReadBuf<'_>) -> Poll<std::io::Result<()>> {
+        match &mut *self {
+            MaybeTlsStream::Plain(s) => Pin::new(s).poll_read(cx, buf),
+            MaybeTlsStream::Tls(s) => Pin::new(s).poll_read(cx, buf),
+        }
+    }
+}
+
+impl tokio::io::AsyncWrite for MaybeTlsStream {
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
+        match &mut *self {
+            MaybeTlsStream::Plain(s) => Pin::new(s).poll_write(cx, buf),
+            MaybeTlsStream::Tls(s) => Pin::new(s).poll_write(cx, buf),
+        }
+    }
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match &mut *self {
+            MaybeTlsStream::Plain(s) => Pin::new(s).poll_flush(cx),
+            MaybeTlsStream::Tls(s) => Pin::new(s).poll_flush(cx),
+        }
+    }
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match &mut *self {
+            MaybeTlsStream::Plain(s) => Pin::new(s).poll_shutdown(cx),
+            MaybeTlsStream::Tls(s) => Pin::new(s).poll_shutdown(cx),
+        }
+    }
+}
+
+type ProxyClient = Client<NativeTlsConnector, ProxyBody>;
+
+/// Connector that wraps HttpConnector with native-tls (OpenSSL) for HTTPS.
+/// Uses OpenSSL instead of rustls for better compatibility with quirky TLS servers.
+#[derive(Clone)]
+struct NativeTlsConnector {
+    inner: HttpConnector,
+    tls: tokio_native_tls::TlsConnector,
+}
+
+impl tower::Service<Uri> for NativeTlsConnector {
+    type Response = TokioIo<MaybeTlsStream>;
+    type Error = BoxError;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, uri: Uri) -> Self::Future {
+        let is_https = uri.scheme().map(|s| s.as_str() == "https").unwrap_or(false);
+        let host = uri
+            .host()
+            .unwrap_or("localhost")
+            .to_string();
+        let port = uri.port_u16().unwrap_or(if is_https { 443 } else { 80 });
+
+        // Build HTTP URI for inner connector (HttpConnector only accepts http://)
+        let http_uri_str = format!("http://{}:{}", host, port);
+        let http_uri: Uri = http_uri_str.parse().unwrap();
+
+        let mut this = self.clone();
+        let inner_future = this.inner.call(http_uri);
+        let tls = this.tls.clone();
+
+        Box::pin(async move {
+            let tcp_io = inner_future
+                .await
+                .map_err(|e| -> BoxError { Box::new(e) })?;
+            let tcp = tcp_io.into_inner();
+            if is_https {
+                let tls_stream = tls
+                    .connect(&host, tcp)
+                    .await
+                    .map_err(|e| -> BoxError { Box::new(e) })?;
+                Ok(TokioIo::new(MaybeTlsStream::Tls(Box::new(tls_stream))))
+            } else {
+                Ok(TokioIo::new(MaybeTlsStream::Plain(tcp)))
+            }
+        })
+    }
+}
 
 /// Idle timeout: close connection when no frame transferred for this duration.
 const IDLE_TIMEOUT: Duration = Duration::from_secs(300);
@@ -62,70 +210,35 @@ fn build_verified_client() -> ProxyClient {
     let mut connector = HttpConnector::new();
     connector.set_connect_timeout(Some(Duration::from_secs(5)));
     connector.set_nodelay(true);
+    connector.enforce_http(false);
 
-    // Load system root certificates
-    let mut root_store = rustls::RootCertStore::empty();
-    for cert in rustls_native_certs::load_native_certs().certs {
-        let _ = root_store.add(cert);
-    }
-
-    let tls_config = rustls::ClientConfig::builder()
-        .with_root_certificates(root_store)
-        .with_no_client_auth();
-
-    let https = hyper_rustls::HttpsConnectorBuilder::new()
-        .with_tls_config(tls_config)
-        .https_or_http()
-        .enable_http1()
-        .wrap_connector(connector);
+    let tls = tokio_native_tls::native_tls::TlsConnector::builder()
+        .build()
+        .expect("native-tls connector build")
+        .into();
 
     Client::builder(hyper_util::rt::TokioExecutor::new())
         .pool_idle_timeout(Duration::from_secs(90))
         .pool_max_idle_per_host(4)
-        .build(https)
+        .build(NativeTlsConnector { inner: connector, tls })
 }
 
 fn build_skip_verify_client() -> ProxyClient {
     let mut connector = HttpConnector::new();
     connector.set_connect_timeout(Some(Duration::from_secs(5)));
     connector.set_nodelay(true);
+    connector.enforce_http(false);
 
-    let verifier = Arc::new(SkipCertVerifier);
-    let tls_config = rustls::ClientConfig::builder()
-        .dangerous()
-        .with_custom_certificate_verifier(verifier)
-        .with_no_client_auth();
-
-    let https = hyper_rustls::HttpsConnectorBuilder::new()
-        .with_tls_config(tls_config)
-        .https_or_http()
-        .enable_http1()
-        .wrap_connector(connector);
+    let tls = tokio_native_tls::native_tls::TlsConnector::builder()
+        .danger_accept_invalid_certs(true)
+        .build()
+        .expect("native-tls connector build")
+        .into();
 
     Client::builder(hyper_util::rt::TokioExecutor::new())
         .pool_idle_timeout(Duration::from_secs(90))
         .pool_max_idle_per_host(4)
-        .build(https)
-}
-
-// ── TLS cert verifier (skip for upstream) ─────────────────────────────────
-
-#[derive(Debug)]
-struct SkipCertVerifier;
-
-impl rustls::client::danger::ServerCertVerifier for SkipCertVerifier {
-    fn verify_server_cert(&self, _: &rustls::pki_types::CertificateDer<'_>, _: &[rustls::pki_types::CertificateDer<'_>], _: &rustls::pki_types::ServerName<'_>, _: &[u8], _: rustls::pki_types::UnixTime) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
-        Ok(rustls::client::danger::ServerCertVerified::assertion())
-    }
-    fn verify_tls12_signature(&self, _: &[u8], _: &rustls::pki_types::CertificateDer<'_>, _: &rustls::DigitallySignedStruct) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
-        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
-    }
-    fn verify_tls13_signature(&self, _: &[u8], _: &rustls::pki_types::CertificateDer<'_>, _: &rustls::DigitallySignedStruct) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
-        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
-    }
-    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
-        vec![rustls::SignatureScheme::RSA_PKCS1_SHA256, rustls::SignatureScheme::ECDSA_NISTP256_SHA256, rustls::SignatureScheme::RSA_PKCS1_SHA384, rustls::SignatureScheme::ECDSA_NISTP384_SHA384]
-    }
+        .build(NativeTlsConnector { inner: connector, tls })
 }
 
 // ── SNI extraction from raw ClientHello bytes ────────────────────────────
@@ -219,9 +332,20 @@ impl CertResolver {
 
 impl ResolvesServerCert for CertResolver {
     fn resolve(&self, client_hello: ClientHello<'_>) -> Option<Arc<CertifiedKey>> {
-        let sni = client_hello.server_name()?;
+        let sni = client_hello.server_name()?.to_lowercase();
         let cache = self.cert_cache.read().ok()?;
-        cache.get(sni).cloned()
+        // Exact match first (cache keys are already lowercase)
+        if let Some(ck) = cache.get(&sni) {
+            return Some(ck.clone());
+        }
+        // Wildcard fallback: is.au.example.com → *.au.example.com
+        if let Some(dot) = sni.find('.') {
+            let wildcard = format!("*{}", &sni[dot..]);
+            if let Some(ck) = cache.get(&wildcard) {
+                return Some(ck.clone());
+            }
+        }
+        None
     }
 }
 
@@ -372,7 +496,7 @@ async fn serve_connection(
             .fill_buf()
             .await
             .ok()
-            .and_then(|buf| extract_sni(buf));
+            .and_then(extract_sni);
 
         // Check for TCP rule matching this SNI + port group
         if let Some(ref sni_domain) = sni {
@@ -529,12 +653,8 @@ fn into_proxy_body(incoming: Incoming) -> ProxyBody {
 }
 
 /// Convert `Incoming` body to `ProxyBody` with **idle timeout**.
-///
-/// If no frame arrives within `idle`, the stream closes silently.
-/// Uses two heap allocations: `Box::pin` for the stream + `UnsyncBoxBody`.
 fn into_proxy_body_idle(incoming: Incoming, idle: Duration) -> ProxyBody {
     let body_stream = Box::pin(incoming.into_data_stream());
-
     let timed = futures_util::stream::unfold(
         (body_stream, idle),
         |(mut stream, timeout)| async move {
@@ -549,7 +669,6 @@ fn into_proxy_body_idle(incoming: Incoming, idle: Duration) -> ProxyBody {
             }
         },
     );
-
     UnsyncBoxBody::new(StreamBody::new(timed))
 }
 
@@ -666,15 +785,12 @@ async fn proxy_request(
     let upstream_req = upstream_req.body(upstream_body).unwrap();
 
     // Receive response from upstream
+    let start = std::time::Instant::now();
     match client.request(upstream_req).await {
         Ok(resp) => {
             let status = resp.status();
             let upstream_headers = resp.headers().clone();
             let is_ws_resp = status == StatusCode::SWITCHING_PROTOCOLS;
-
-            // Log proxy access
-            let proto = if is_tls { "https" } else { "http" };
-            tracing::debug!("PROXY: {real_ip} {proto}://{host} {method} {path} → {status}");
 
             // Build downstream response (hop-by-hop cleaned)
             let mut response = Response::builder().status(status);
@@ -684,7 +800,7 @@ async fn proxy_request(
                 }
             }
 
-            // HSTS: tell browsers to always use HTTPS for this domain
+            // HSTS
             if is_tls {
                 response = response.header(
                     STRICT_TRANSPORT_SECURITY,
@@ -692,13 +808,23 @@ async fn proxy_request(
                 );
             }
 
-            // Stream response body back with idle timeout
+            // Log and stream response
+            let elapsed = start.elapsed();
+            let secs = format!("{:.1}", elapsed.as_secs_f64());
+            logger::info(&state.db, &format!(
+                "PROXY DONE: {host} {method} {path} | {real_ip} | {status} | {secs}s"
+            )).await;
+
             let resp_body = into_proxy_body_idle(resp.into_body(), IDLE_TIMEOUT);
             Ok(response.body(resp_body).unwrap())
         }
         Err(e) => {
-            tracing::warn!("Upstream connect failed for {host}: {e}");
-            logger::error(&state.db, &format!("PROXY: {host}{path} → UPSTREAM FAILED: {e}")).await;
+            let elapsed = start.elapsed();
+            let src = std::error::Error::source(&e).map(|s| format!("\n  caused by: {s}")).unwrap_or_default();
+            tracing::warn!("Upstream connect failed for {host}: {e:?}");
+            logger::error(&state.db, &format!(
+                "PROXY ERROR: {host}{path} → UPSTREAM FAILED ({:.1}s): {e}{src}", elapsed.as_secs_f64()
+            )).await;
             Ok(Response::builder()
                 .status(StatusCode::BAD_GATEWAY)
                 .body(bytes_body("Bad Gateway"))

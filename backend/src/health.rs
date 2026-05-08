@@ -27,6 +27,8 @@ async fn check_all_upstreams(state: &Arc<AppState>, client: &Client) -> anyhow::
     for rule in rules {
         let status = match client.get(&rule.target_url).send().await {
             Ok(resp) if resp.status().is_success() => "online",
+            Ok(resp) if resp.status() == reqwest::StatusCode::UNAUTHORIZED
+                     || resp.status() == reqwest::StatusCode::FORBIDDEN => "online",
             Ok(_) => "error",
             Err(_) => "offline",
         };

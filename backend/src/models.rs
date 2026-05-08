@@ -11,6 +11,7 @@ pub struct ProxyRule {
     pub rule_type: String,
     pub redirect_code: Option<i64>,
     pub ssl_enabled: bool,
+    pub cert_id: Option<String>,
     pub force_https: bool,
     pub enabled: bool,
     pub port_group_id: Option<String>,
@@ -33,6 +34,8 @@ pub struct CreateProxyRule {
     #[serde(default)]
     pub ssl_enabled: bool,
     #[serde(default)]
+    pub cert_id: Option<String>,
+    #[serde(default)]
     pub force_https: bool,
     #[serde(default = "default_true")]
     pub enabled: bool,
@@ -48,6 +51,7 @@ pub struct UpdateProxyRule {
     pub ssl_enabled: Option<bool>,
     pub force_https: Option<bool>,
     pub enabled: Option<bool>,
+    pub cert_id: Option<String>,
 }
 
 // ── Port Group ────────────────────────────────────────────────────────────────

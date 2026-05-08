@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT domain, cert_id FROM proxy_rules WHERE ssl_enabled = 1 AND enabled = 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "domain",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "cert_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "94e1f73a5a7a7f6de4c8e5c34ddb87b18b0086bc899761200635307da88bcc1f"
+}

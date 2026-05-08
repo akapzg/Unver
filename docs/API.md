@@ -235,18 +235,78 @@ Delete an API key.
 
 ### GET /api/system/backup
 
-Export configuration (secrets excluded).
+Export configuration (secrets excluded). Includes port groups, proxy rules, certificates, and non-sensitive settings.
 
-**Response:** `200 OK` — JSON file download.
+**Response:** `200 OK`
+```json
+{
+  "version": "1.1.1",
+  "timestamp": "2026-05-08T12:00:00+00:00",
+  "port_groups": [
+    {
+      "id": "uuid",
+      "name": "HTTPS",
+      "listen_port": 8443,
+      "enabled": 1,
+      "skip_tls_verify": 0,
+      "force_https": 0
+    }
+  ],
+  "proxy_rules": [
+    {
+      "id": "uuid",
+      "port_group_id": "uuid",
+      "name": "My App",
+      "domain": "app.example.com",
+      "target_url": "http://localhost:3000",
+      "rule_type": "proxy",
+      "redirect_code": null,
+      "cert_id": null,
+      "ssl_enabled": 1,
+      "force_https": 0,
+      "enabled": 1
+    }
+  ],
+  "certificates": [
+    {
+      "id": "uuid",
+      "domain": "example.com",
+      "cert_pem": "-----BEGIN CERTIFICATE-----\n...",
+      "key_pem": "-----BEGIN PRIVATE KEY-----\n...",
+      "expires_at": "2027-05-08T00:00:00Z",
+      "auto_renew": 1,
+      "source": "acme"
+    }
+  ],
+  "settings": [
+    { "key": "acme_email", "value": "admin@example.com" },
+    { "key": "ddns_provider", "value": "cloudflare" }
+  ]
+}
+```
 
 ### POST /api/system/restore
 
-Import configuration.
+Import configuration from a JSON backup file.
 
-**Request:** `multipart/form-data`
-- `file`: JSON export file
+**Request:** JSON body — a complete or partial backup JSON (same format as export). Only `port_groups`, `proxy_rules`, `certificates`, and `settings` arrays are processed. Omitted arrays are skipped.
+
+**Import strategy:**
+- `port_groups`: UPSERT by id
+- `certificates`: UPSERT by id (private keys re-encrypted for the target DB's encryption key)
+- `proxy_rules`: DELETE all → INSERT from backup (preserves original IDs, port_group_id, cert_id references)
+- `settings`: UPSERT (sensitive keys skipped)
 
 **Response:** `200 OK`
+```json
+{
+  "message": "Import successful",
+  "port_groups_imported": 2,
+  "certificates_imported": 1,
+  "proxy_rules_imported": 5,
+  "settings_imported": 12
+}
+```
 
 ---
 

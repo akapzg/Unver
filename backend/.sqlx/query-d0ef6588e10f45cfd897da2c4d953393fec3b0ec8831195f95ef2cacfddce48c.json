@@ -1,21 +1,26 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT domain, cert_pem, key_pem FROM certificates WHERE expires_at > datetime('now')",
+  "query": "SELECT id, domain, cert_pem, key_pem FROM certificates WHERE expires_at > datetime('now')",
   "describe": {
     "columns": [
       {
-        "name": "domain",
+        "name": "id",
         "ordinal": 0,
         "type_info": "Text"
       },
       {
-        "name": "cert_pem",
+        "name": "domain",
         "ordinal": 1,
         "type_info": "Text"
       },
       {
-        "name": "key_pem",
+        "name": "cert_pem",
         "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "key_pem",
+        "ordinal": 3,
         "type_info": "Text"
       }
     ],
@@ -23,10 +28,11 @@
       "Right": 0
     },
     "nullable": [
+      true,
       false,
       false,
       false
     ]
   },
-  "hash": "731226342fb67d2d36a5eaf6320399836e50656705d29bf38eab1f9f824a1fd1"
+  "hash": "d0ef6588e10f45cfd897da2c4d953393fec3b0ec8831195f95ef2cacfddce48c"
 }

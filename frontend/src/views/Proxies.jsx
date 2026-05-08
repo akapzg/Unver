@@ -21,17 +21,20 @@ const Proxies = () => {
   const [showRuleModal, setShowRuleModal] = useState(false);
   const [pgForm, setPgForm] = useState({ name: '', listen_port: 8443, enabled: true, skip_tls_verify: false, force_https: false });
   const [editingPgId, setEditingPgId] = useState(null);
-  const [ruleForm, setRuleForm] = useState({ name: '', domain: '', target_url: '', rule_type: 'proxy', redirect_code: 301, ssl_enabled: false, port_group_id: '' });
+  const [ruleForm, setRuleForm] = useState({ name: '', domain: '', target_url: '', rule_type: 'proxy', redirect_code: 301, ssl_enabled: false, cert_id: '', port_group_id: '' });
   const [editingRuleId, setEditingRuleId] = useState(null);
+  const [certificates, setCertificates] = useState([]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const pgRes = await client.get('/port-groups');
       await fetchProxies();
+      const certRes = await client.get('/certificates');
 
       const groups = pgRes.data || [];
       const allProxies = useStore.getState().proxies || [];
+      setCertificates(certRes.data || []);
 
       // Group proxies by port_group_id instead of broken /port-groups/:id/rules
       const groupsWithRules = groups.map(g => ({
@@ -103,10 +106,10 @@ const Proxies = () => {
   // ── Rule CRUD ──
   const openRuleModal = (pgId, rule = null) => {
     if (rule) {
-      setRuleForm({ name: rule.name, domain: rule.domain, target_url: rule.target_url, rule_type: rule.rule_type || 'proxy', redirect_code: rule.redirect_code || 301, ssl_enabled: rule.ssl_enabled, port_group_id: pgId });
+      setRuleForm({ name: rule.name, domain: rule.domain, target_url: rule.target_url, rule_type: rule.rule_type || 'proxy', redirect_code: rule.redirect_code || 301, ssl_enabled: rule.ssl_enabled, cert_id: rule.cert_id || '', port_group_id: pgId });
       setEditingRuleId(rule.id);
     } else {
-      setRuleForm({ name: '', domain: '', target_url: '', rule_type: 'proxy', redirect_code: 301, ssl_enabled: false, port_group_id: pgId });
+      setRuleForm({ name: '', domain: '', target_url: '', rule_type: 'proxy', redirect_code: 301, ssl_enabled: false, cert_id: '', port_group_id: pgId });
       setEditingRuleId(null);
     }
     setShowRuleModal(true);
@@ -163,8 +166,16 @@ const Proxies = () => {
     } catch { addToast(t('failed'), 'error'); }
   };
 
+  const getRuleUrl = (pg, rule) => {
+    const isSsl = rule.ssl_enabled || pg.listen_port === 443;
+    const protocol = isSsl ? 'https' : 'http';
+    const defaultPort = isSsl ? 443 : 80;
+    const portStr = pg.listen_port === defaultPort ? '' : `:${pg.listen_port}`;
+    return `${protocol}://${rule.domain}${portStr}`;
+  };
+
   const copyUrl = (pg, rule) => {
-    const url = `http://${rule.domain}:${pg.listen_port}`;
+    const url = getRuleUrl(pg, rule);
     const doToast = (msg, type) => addToast(msg, type);
     // Try modern clipboard API first
     if (navigator.clipboard && window.isSecureContext) {
@@ -304,7 +315,7 @@ const Proxies = () => {
                               <td>
                                 <div className="flex items-c gap-2" style={{ justifyContent: 'center' }}>
                                   <span className="mono">{rule.domain}</span>
-                                  <a href={`http://${rule.domain}:${pg.listen_port}`} target="_blank" rel="noreferrer" className="text-accent"><ExternalLink size={14} /></a>
+                                  <a href={getRuleUrl(pg, rule)} target="_blank" rel="noreferrer" className="text-accent"><ExternalLink size={14} /></a>
                                   <button className="btn btn-ghost btn-icon" onClick={() => copyUrl(pg, rule)} title={t('copyAddress')}><Copy size={14} /></button>
                                 </div>
                               </td>
@@ -427,6 +438,18 @@ const Proxies = () => {
                       <span className="toggle-slider"></span>
                     </label>
                   </div>
+                  {ruleForm.ssl_enabled && certificates.length > 0 && (
+                    <div className="form-group">
+                      <label className="form-label">{t('selectCert')}</label>
+                      <select className="form-input" value={ruleForm.cert_id}
+                        onChange={e => setRuleForm({ ...ruleForm, cert_id: e.target.value })}>
+                        <option value="">{t('autoMatch')}</option>
+                        {certificates.map(c => (
+                          <option key={c.id} value={c.id}>{c.domain}{c.source === 'manual' ? ' (📤)' : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </>
               )}
               {ruleForm.rule_type === 'redirect' && (

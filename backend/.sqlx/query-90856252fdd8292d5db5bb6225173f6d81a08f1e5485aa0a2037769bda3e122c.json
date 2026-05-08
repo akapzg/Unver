@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, domain, cert_pem, key_pem, expires_at, auto_renew, source FROM certificates",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "domain",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "cert_pem",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "key_pem",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "auto_renew",
+        "ordinal": 5,
+        "type_info": "Int64"
+      },
+      {
+        "name": "source",
+        "ordinal": 6,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "90856252fdd8292d5db5bb6225173f6d81a08f1e5485aa0a2037769bda3e122c"
+}

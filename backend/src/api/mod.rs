@@ -30,7 +30,7 @@ pub async fn serve(
     let lan_only = get_setting(&state.db, "panel_lan_only").await.unwrap_or_default() == "true";
 
     let bind_addr = if lan_only {
-        detect_lan_ip().unwrap_or_else(|| iface)
+        detect_lan_ip().unwrap_or(iface)
     } else if iface.is_empty() || iface == "0.0.0.0" {
         "0.0.0.0".to_string()
     } else {

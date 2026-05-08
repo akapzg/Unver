@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT listen_port FROM port_groups WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "listen_port",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5b0f2032b8c519945c6b0887c4b4b6214f9c24af92a601456d21269bb86e671e"
+}

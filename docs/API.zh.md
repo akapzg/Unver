@@ -235,18 +235,78 @@ Authorization: Bearer <token>
 
 ### GET /api/system/backup
 
-导出配置（不含敏感字段）。
+导出配置（不含敏感字段）。包含端口组、代理规则、证书和非敏感设置。
 
-**响应：** `200 OK` — JSON 文件下载。
+**响应：** `200 OK`
+```json
+{
+  "version": "1.1.1",
+  "timestamp": "2026-05-08T12:00:00+00:00",
+  "port_groups": [
+    {
+      "id": "uuid",
+      "name": "HTTPS",
+      "listen_port": 8443,
+      "enabled": 1,
+      "skip_tls_verify": 0,
+      "force_https": 0
+    }
+  ],
+  "proxy_rules": [
+    {
+      "id": "uuid",
+      "port_group_id": "uuid",
+      "name": "我的应用",
+      "domain": "app.example.com",
+      "target_url": "http://localhost:3000",
+      "rule_type": "proxy",
+      "redirect_code": null,
+      "cert_id": null,
+      "ssl_enabled": 1,
+      "force_https": 0,
+      "enabled": 1
+    }
+  ],
+  "certificates": [
+    {
+      "id": "uuid",
+      "domain": "example.com",
+      "cert_pem": "-----BEGIN CERTIFICATE-----\n...",
+      "key_pem": "-----BEGIN PRIVATE KEY-----\n...",
+      "expires_at": "2027-05-08T00:00:00Z",
+      "auto_renew": 1,
+      "source": "acme"
+    }
+  ],
+  "settings": [
+    { "key": "acme_email", "value": "admin@example.com" },
+    { "key": "ddns_provider", "value": "cloudflare" }
+  ]
+}
+```
 
 ### POST /api/system/restore
 
-导入配置。
+从 JSON 备份文件导入配置。
 
-**请求：** `multipart/form-data`
-- `file`: JSON 导出文件
+**请求：** JSON 体 — 完整或部分备份 JSON（格式同上）。仅处理 `port_groups`、`proxy_rules`、`certificates`、`settings` 数组。省略的数组会跳过。
+
+**导入策略：**
+- `port_groups`：按 id 更新或插入
+- `certificates`：按 id 更新或插入（私钥会使用目标设备的加密密钥重新加密）
+- `proxy_rules`：删除全部 → 从备份插入（保留原始 ID，包括 port_group_id、cert_id 引用）
+- `settings`：更新或插入（敏感字段跳过）
 
 **响应：** `200 OK`
+```json
+{
+  "message": "Import successful",
+  "port_groups_imported": 2,
+  "certificates_imported": 1,
+  "proxy_rules_imported": 5,
+  "settings_imported": 12
+}
+```
 
 ---
 

@@ -148,23 +148,20 @@ pub async fn fetch_ip(
 ) -> Option<String> {
     for url in endpoints {
         match client.get(*url).send().await {
-            Ok(resp) => match resp.text().await {
-                Ok(body) => {
-                    let ip = body.trim().to_string();
-                    if ip.is_empty() {
-                        continue;
-                    }
-                    if !ip.chars().all(|c| c.is_ascii_digit() || c == '.' || c == ':') {
-                        continue;
-                    }
-                    if require_colon && !ip.contains(':') {
-                        tracing::debug!("DDNS: {url} returned IPv4 for IPv6 endpoint, skipping");
-                        continue;
-                    }
-                    tracing::debug!("DDNS: Got IP {ip} from {url}");
-                    return Some(ip);
+            Ok(resp) => if let Ok(body) = resp.text().await {
+                let ip = body.trim().to_string();
+                if ip.is_empty() {
+                    continue;
                 }
-                Err(_) => {}
+                if !ip.chars().all(|c| c.is_ascii_digit() || c == '.' || c == ':') {
+                    continue;
+                }
+                if require_colon && !ip.contains(':') {
+                    tracing::debug!("DDNS: {url} returned IPv4 for IPv6 endpoint, skipping");
+                    continue;
+                }
+                tracing::debug!("DDNS: Got IP {ip} from {url}");
+                return Some(ip);
             },
             Err(e) => {
                 tracing::debug!("DDNS: IP endpoint {url} failed: {e}");

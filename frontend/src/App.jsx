@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useStore } from './store/useStore';
 import Layout from './components/Layout';
 import Login from './views/Login';
@@ -30,14 +30,22 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
-  const { checkSetup } = useStore();
+  const { setupComplete, checkSetup } = useStore();
+  const navigate = useNavigate();
 
   useEffect(() => {
     checkSetup();
   }, [checkSetup]);
 
+  // Redirect to /setup from anywhere when setup is not complete
+  useEffect(() => {
+    if (setupComplete === false && window.location.pathname !== '/setup') {
+      navigate('/setup', { replace: true });
+    }
+  }, [setupComplete, navigate]);
+
   return (
-    <BrowserRouter>
+    <>
       <div className="mesh-bg" />
       <Routes>
         <Route path="/login" element={<Login />} />
@@ -58,7 +66,7 @@ function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
+    </>
   );
 }
 

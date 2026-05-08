@@ -39,25 +39,58 @@ pub async fn run_ssl_manager(state: Arc<AppState>) {
 
 pub async fn load_certs_to_cache(state: &Arc<AppState>) -> AppResult<()> {
     let rows = sqlx::query!(
-        "SELECT domain, cert_pem, key_pem FROM certificates WHERE expires_at > datetime('now')"
+        "SELECT id, domain, cert_pem, key_pem FROM certificates WHERE expires_at > datetime('now')"
     ).fetch_all(&state.db).await?;
 
     // Decrypt all keys first (outside the lock, since decryption is async)
-    let mut decrypted: Vec<(String, String, String)> = Vec::new();
+    let mut decrypted: Vec<(String, String, String, String)> = Vec::new();
     for row in rows {
         match decrypt_key_from_db(&state.db, &row.key_pem).await {
-            Ok(key_pem) => decrypted.push((row.domain, row.cert_pem, key_pem)),
+            Ok(key_pem) => decrypted.push((row.id.unwrap_or_default(), row.domain, row.cert_pem, key_pem)),
             Err(e) => tracing::warn!("Failed to decrypt key for {}: {e}", row.domain),
         }
     }
 
+    // Only cache certs for rules with ssl_enabled=true (NPM-style: per-domain control)
+    let ssl_rules = sqlx::query!(
+        "SELECT domain, cert_id FROM proxy_rules WHERE ssl_enabled = 1 AND enabled = 1"
+    ).fetch_all(&state.db).await?;
+
     let mut cache = state.cert_cache.write().map_err(|_| AppError::Internal(anyhow::anyhow!("poison")))?;
-    for (domain, cert_pem, key_pem) in decrypted {
-        if let Ok(ck) = load_cert_into_cache(&cert_pem, &key_pem) {
-            cache.insert(domain, Arc::new(ck));
+    for (id, cert_domain, cert_pem, key_pem) in &decrypted {
+        if let Ok(ck) = load_cert_into_cache(cert_pem, key_pem) {
+            let ck = Arc::new(ck);
+            for rule in &ssl_rules {
+                let covers = if rule.cert_id.as_deref() == Some(id.as_str()) {
+                    // Explicit cert_id binding — always match
+                    true
+                } else if rule.cert_id.is_none() {
+                    // Auto-match: cert domain covers rule domain
+                    cert_covers_domain(cert_domain, &rule.domain)
+                } else {
+                    false // rule binds to a different cert, skip
+                };
+                if covers {
+                    cache.insert(rule.domain.to_lowercase(), ck.clone());
+                }
+            }
         }
     }
     Ok(())
+}
+
+/// Check if a certificate's domain covers a rule's domain.
+/// Exact match or single-level wildcard: *.example.com covers sub.example.com
+fn cert_covers_domain(cert_domain: &str, rule_domain: &str) -> bool {
+    if cert_domain.eq_ignore_ascii_case(rule_domain) {
+        return true;
+    }
+    if let Some(rest) = cert_domain.strip_prefix("*.") {
+        if let Some(dot) = rule_domain.find('.') {
+            return rest.eq_ignore_ascii_case(&rule_domain[dot + 1..]);
+        }
+    }
+    false
 }
 
 pub fn load_cert_into_cache(cert_pem: &str, key_pem: &str) -> AppResult<rustls::sign::CertifiedKey> {
@@ -223,9 +256,8 @@ pub async fn issue_certificate_multi(
         id, primary, cert_pem, encrypted_key, expires_at
     ).execute(&state.db).await?;
 
-    if let Ok(ck) = load_cert_into_cache(&cert_pem, &key_pem) {
-        if let Ok(mut cache) = state.cert_cache.write() { cache.insert(primary.clone(), Arc::new(ck)); }
-    }
+    // Refresh cert cache (only inserts for rules with ssl_enabled=true)
+    let _ = load_certs_to_cache(state).await;
     push_log(&log, "success", &format!("🎉 签发完成: {} (90天)", domains.join(", ")));
     Ok(())
 }
@@ -268,7 +300,7 @@ pub async fn issue_certificate_sync(
    state: &Arc<AppState>,
    use_staging: bool,
     db: &SqlitePool,
-    cert_cache: &Arc<std::sync::RwLock<HashMap<String, Arc<rustls::sign::CertifiedKey>>>>,
+    _cert_cache: &Arc<std::sync::RwLock<HashMap<String, Arc<rustls::sign::CertifiedKey>>>>,
     log_buf: Option<Arc<tokio::sync::Mutex<Vec<LogLine>>>>,
 ) -> Result<crate::ssl_worker::SslResult, String> {
     let acme_url = if use_staging { LETS_ENCRYPT_STAGING } else { LETS_ENCRYPT_URL };
@@ -411,11 +443,8 @@ pub async fn issue_certificate_sync(
         id, primary, cert_pem, encrypted_key, expires_at
     ).execute(db).await.map_err(|e| format!("DB: {e}"))?;
 
-    if let Ok(ck) = load_cert_into_cache(&cert_pem, &key_pem) {
-        if let Ok(mut cache) = cert_cache.write() {
-            cache.insert(primary.clone(), Arc::new(ck));
-        }
-    }
+    // Refresh cert cache (only inserts for rules with ssl_enabled=true)
+    let _ = load_certs_to_cache(state).await;
 
     push("success", &format!("🎉 签发完成: {} (90天)", primary));
     Ok(crate::ssl_worker::SslResult {

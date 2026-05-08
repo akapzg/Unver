@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO proxy_rules (id, port_group_id, name, domain, target_url, rule_type, redirect_code, cert_id, ssl_enabled, force_https, enabled)\n                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "dcb91e2e920128144ca93adea4093b93b78ce69d922058aca991a15fab7eb329"
+}

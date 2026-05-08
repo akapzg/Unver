@@ -268,7 +268,7 @@ const resources = {
       ssl: 'SSL',
       ruleTypeRedirect: '跳转',
       ruleTypeTcp: 'TCP',
-      ruleTypeProxy: '代理',
+      ruleTypeProxy: '反代',
       proxyTypeReverse: '反向代理',
       proxyTypeRedirect: 'URL 跳转',
       proxyTypeTcp: 'TCP 转发',
@@ -317,6 +317,7 @@ const resources = {
       updateFoundDocker: '发现新版本 v{{version}} — 点此查看 GitHub',
       updateFound: '发现新版本 v{{version}} — 点此升级',
       updateConfirm: '确认立即更新？更新完成后服务将自动重启。',
+      forgotPasswordHint: '忘记密码？SSH 登录设备后执行: unver reset-password',
     }
   },
   en: {
@@ -633,6 +634,7 @@ const resources = {
       updateFoundDocker: 'New version v{{version}} — View on GitHub',
       updateFound: 'New version v{{version}} — Tap to upgrade',
       updateConfirm: 'Confirm update? Service will restart after update.',
+      forgotPasswordHint: 'Forgot password? SSH into device and run: unver reset-password',
     }
   }
 };
