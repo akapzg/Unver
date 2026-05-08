@@ -153,6 +153,8 @@ pub async fn update(
         validate_domain(domain)?;
         sqlx::query!("UPDATE proxy_rules SET domain = ?, updated_at = datetime('now') WHERE id = ?", domain, id)
             .execute(&state.db).await?;
+        // Refresh cert cache — domain change may affect cert matching
+        let _ = crate::ssl::load_certs_to_cache(&state).await;
     }
     if let Some(target_url) = body.target_url {
         sqlx::query!("UPDATE proxy_rules SET target_url = ?, updated_at = datetime('now') WHERE id = ?", target_url, id)
