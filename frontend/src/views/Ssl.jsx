@@ -388,8 +388,9 @@ const Ssl = () => {
       {showUpload && (
         <div className="modal-overlay">
           <div className="modal glass">
-            <header className="modal-header">
+            <header className="modal-header" style={{flexDirection:'column',alignItems:'flex-start'}}>
               <h2 className="modal-title">{t('uploadCert')}</h2>
+              <p className="text-muted text-sm" style={{marginTop:2}}>{t('uploadCertHint')}</p>
             </header>
             <form onSubmit={handleUpload} className="modal-body">
               <div className="form-group">
