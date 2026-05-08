@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, target_url, rule_type, redirect_code FROM proxy_rules WHERE domain = ? AND port_group_id = ? AND enabled = 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "target_url",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "rule_type",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "redirect_code",
+        "ordinal": 3,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "4245276b2d62eb453f6282dd284fd8521c51c8e9e18d7807a7974095733cf56f"
+}

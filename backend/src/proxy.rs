@@ -707,6 +707,33 @@ fn into_proxy_body_idle(incoming: Incoming, idle: Duration) -> ProxyBody {
 
 // ── Core proxy request handler ────────────────────────────────────────────
 
+// ── Connection tracking guard ──────────────────────────────────────────────
+
+/// Auto-decrements the connection counter for a rule when dropped.
+struct ConnGuard {
+    counter: crate::state::ConnCounter,
+    rule_id: String,
+}
+
+impl ConnGuard {
+    fn new(counter: crate::state::ConnCounter, rule_id: String) -> Self {
+        if let Ok(mut map) = counter.lock() {
+            *map.entry(rule_id.clone()).or_insert(0) += 1;
+        }
+        Self { counter, rule_id }
+    }
+}
+
+impl Drop for ConnGuard {
+    fn drop(&mut self) {
+        if let Ok(mut map) = self.counter.lock() {
+            if let Some(count) = map.get_mut(&self.rule_id) {
+                *count = count.saturating_sub(1);
+            }
+        }
+    }
+}
+
 async fn proxy_request(
     req: Request<Incoming>,
     peer: std::net::SocketAddr,
@@ -743,7 +770,7 @@ async fn proxy_request(
 
     // Match proxy rule by domain AND port group
     let rule = sqlx::query!(
-        "SELECT target_url, rule_type, redirect_code FROM proxy_rules WHERE domain = ? AND port_group_id = ? AND enabled = 1",
+        "SELECT id, target_url, rule_type, redirect_code FROM proxy_rules WHERE domain = ? AND port_group_id = ? AND enabled = 1",
         host, port_group_id
     ).fetch_optional(&state.db).await;
 
@@ -754,6 +781,10 @@ async fn proxy_request(
             .body(bytes_body("No proxy rule found"))
             .unwrap()),
     };
+
+    // Track active connection (auto-decremented on drop)
+    let rule_id = rule.id.unwrap_or_default();
+    let _guard = ConnGuard::new(state.conn_counter.clone(), rule_id);
 
     // ── Redirect rule: 301/302 ──────────────────────────────────────────
     if rule.rule_type == "redirect" {

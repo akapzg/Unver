@@ -23,22 +23,30 @@ pub async fn list(State(state): State<Arc<AppState>>) -> AppResult<Json<Vec<Prox
     .fetch_all(&state.db)
     .await?;
 
-    let proxies: Vec<ProxyRule> = rows.into_iter().map(|r| ProxyRule {
-        id: r.id.unwrap_or_default(),
-        name: r.name,
-        domain: r.domain,
-        target_url: r.target_url,
-        rule_type: r.rule_type,
-        redirect_code: r.redirect_code,
-        port_group_id: r.port_group_id,
-        cert_id: r.cert_id,
-        ssl_enabled: r.ssl_enabled != 0,
-        force_https: r.force_https != 0,
-        enabled: r.enabled != 0,
-        status: r.status,
-        last_checked_at: r.last_checked_at,
-        created_at: r.created_at,
-        updated_at: r.updated_at,
+    let proxies: Vec<ProxyRule> = rows.into_iter().map(|r| {
+        let id = r.id.unwrap_or_default();
+        let conns = state.conn_counter.lock()
+            .ok()
+            .and_then(|map| map.get(&id).copied())
+            .unwrap_or(0);
+        ProxyRule {
+            id: id.clone(),
+            name: r.name,
+            domain: r.domain,
+            target_url: r.target_url,
+            rule_type: r.rule_type,
+            redirect_code: r.redirect_code,
+            port_group_id: r.port_group_id,
+            cert_id: r.cert_id,
+            ssl_enabled: r.ssl_enabled != 0,
+            force_https: r.force_https != 0,
+            enabled: r.enabled != 0,
+            status: r.status,
+            last_checked_at: r.last_checked_at,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+            active_connections: conns,
+        }
     }).collect();
     Ok(Json(proxies))
 }
@@ -75,6 +83,7 @@ pub async fn get(
         last_checked_at: row.last_checked_at,
         created_at: row.created_at,
         updated_at: row.updated_at,
+        active_connections: 0,
     }))
 }
 
@@ -128,6 +137,7 @@ pub async fn create(
         last_checked_at: row.last_checked_at,
         created_at: row.created_at,
         updated_at: row.updated_at,
+        active_connections: 0,
     };
 
     tracing::info!("Created proxy rule: {} -> {}", rule.domain, rule.target_url);

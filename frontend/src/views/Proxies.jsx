@@ -301,6 +301,7 @@ const Proxies = () => {
                             <th>{t('target')}</th>
                             <th className="hide-mobile">{t('health')}</th>
                             <th>{t('status')}</th>
+                            <th className="hide-mobile">{t('conns')}</th>
                             <th className="hide-mobile">{t('ssl')}</th>
                             <th>{t('actions')}</th>
                           </tr>
@@ -330,6 +331,9 @@ const Proxies = () => {
                                   <input type="checkbox" checked={rule.enabled} onChange={() => toggleRuleStatus(rule)} disabled={!pg.enabled} />
                                   <span className="toggle-slider"></span>
                                 </label>
+                              </td>
+                              <td className="hide-mobile text-center">
+                                <span className="badge badge-info mono">{rule.active_connections || 0}</span>
                               </td>
                               <td className="hide-mobile">
                                 {rule.ssl_enabled ? <span className="badge badge-success">SSL</span> : <span className="text-muted text-sm">HTTP</span>}

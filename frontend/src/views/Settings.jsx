@@ -198,7 +198,7 @@ const Settings = () => {
           </div>
           <div className="form-group mb-3">
             <label className="form-label">{t('username')}</label>
-            <input className="form-input" value={settings?.username || 'admin'} readOnly />
+            <div className="form-input" style={{ cursor: 'default', userSelect: 'none', opacity: 0.6 }}>{settings?.username || 'admin'}</div>
           </div>
           <div className="form-group mb-3">
             <label className="form-label">{t('currentPassword')}</label>

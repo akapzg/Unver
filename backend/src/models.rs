@@ -19,6 +19,9 @@ pub struct ProxyRule {
     pub last_checked_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    /// Active connections (from in-memory counter, not DB)
+    #[serde(default)]
+    pub active_connections: u64,
 }
 
 #[derive(Debug, Deserialize)]

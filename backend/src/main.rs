@@ -16,6 +16,8 @@ mod ssl_worker;
 mod state;
 
 use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::Mutex;
 use anyhow::Result;
 use mimalloc::MiMalloc;
 use tokio::sync::broadcast;
@@ -70,7 +72,8 @@ async fn main() -> Result<()> {
 
     let pool = db::setup(&config).await?;
     let net_tracker = Arc::new(tokio::sync::RwLock::new(network::NetTracker::new()));
-    let state = Arc::new(state::AppState::new(config.clone(), pool, Arc::clone(&net_tracker), Arc::new(pg_reload_tx)));
+    let conn_counter: state::ConnCounter = Arc::new(Mutex::new(HashMap::new()));
+    let state = Arc::new(state::AppState::new(config.clone(), pool, Arc::clone(&net_tracker), Arc::new(pg_reload_tx), conn_counter));
 
     state::ensure_jwt_secret(&state).await?;
 

@@ -20,6 +20,9 @@ use crate::network::SharedNetTracker;
 pub type SharedRateLimiter =
     Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>>;
 
+/// Rule ID → active connection count (std Mutex for sync Drop in proxy guard)
+pub type ConnCounter = Arc<std::sync::Mutex<HashMap<String, u64>>>;
+
 pub struct AppState {
     pub config: Config,
     pub db: SqlitePool,
@@ -37,13 +40,15 @@ pub struct AppState {
     pub start_time: std::time::Instant,
     /// Signal to reload port group listeners after create/update/delete
     pub port_group_reload: Arc<tokio::sync::watch::Sender<()>>,
+    /// Active proxy connections: rule_id → count
+    pub conn_counter: ConnCounter,
 }
 
 impl AppState {
-    pub fn new(config: Config, db: SqlitePool, net_tracker: SharedNetTracker, port_group_reload: Arc<tokio::sync::watch::Sender<()>>) -> Self {
+    pub fn new(config: Config, db: SqlitePool, net_tracker: SharedNetTracker, port_group_reload: Arc<tokio::sync::watch::Sender<()>>, conn_counter: ConnCounter) -> Self {
         let quota = Quota::per_minute(NonZeroU32::new(10).unwrap());
         let login_limiter = Arc::new(RateLimiter::direct(quota));
-        Self { config, db, login_limiter, cert_cache: Arc::new(RwLock::new(HashMap::new())), background_jobs: Arc::new(tokio::sync::Mutex::new(HashMap::new())), background_job_logs: Arc::new(tokio::sync::Mutex::new(HashMap::new())), net_tracker, start_time: std::time::Instant::now(), port_group_reload }
+        Self { config, db, login_limiter, cert_cache: Arc::new(RwLock::new(HashMap::new())), background_jobs: Arc::new(tokio::sync::Mutex::new(HashMap::new())), background_job_logs: Arc::new(tokio::sync::Mutex::new(HashMap::new())), net_tracker, start_time: std::time::Instant::now(), port_group_reload, conn_counter }
     }
 
     /// In-memory dummy state for unit tests — no real DB, no network.
@@ -57,7 +62,8 @@ impl AppState {
             .expect("in-memory sqlite for test");
         let net_tracker = Arc::new(tokio::sync::RwLock::new(crate::network::NetTracker::new()));
         let (pg_reload, _) = tokio::sync::watch::channel(());
-        Self::new(Config::default(), db, net_tracker, Arc::new(pg_reload))
+        let conn_counter = Arc::new(std::sync::Mutex::new(HashMap::new()));
+        Self::new(Config::default(), db, net_tracker, Arc::new(pg_reload), conn_counter)
     }
 }
 

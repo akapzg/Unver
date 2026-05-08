@@ -98,6 +98,7 @@ pub async fn list_rules(
         last_checked_at: r.last_checked_at,
         created_at: r.created_at,
         updated_at: r.updated_at,
+        active_connections: 0,
     }).collect();
     Ok(Json(rules))
 }
