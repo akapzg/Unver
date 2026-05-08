@@ -1257,6 +1257,7 @@ pub async fn perform_update(
             let exe = std::env::current_exe().unwrap_or_default();
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
             let _ = std::process::Command::new(&exe)
+                .arg("start")
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .spawn();

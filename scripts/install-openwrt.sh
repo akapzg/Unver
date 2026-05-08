@@ -100,8 +100,8 @@ start_service() {
     procd_set_param command "\$PROG" "start"
     procd_set_param env DATABASE_URL="sqlite:\$DATA_DIR/unver.db"
     procd_set_param env RUST_LOG="unver=info,tower_http=warn"
-    procd_set_param limits nofile="1024 1024"
-    procd_set_param respawn 3600 5 0
+    procd_set_param limits nofile="65536 65536"
+    procd_set_param respawn 3600 5 5
     procd_set_param stdout 1
     procd_set_param stderr 1
     procd_close_instance

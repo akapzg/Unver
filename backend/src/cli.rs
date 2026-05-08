@@ -163,8 +163,8 @@ async fn self_update() -> anyhow::Result<()> {
     println!("New version available: v{} (current: v{})", latest, CURRENT_VERSION);
 
     // Detect architecture
-    let arch = detect_arch();
-    let asset_name = format!("unver-linux-{}.tar.gz", arch);
+    let (platform, arch) = detect_platform();
+    let asset_name = format!("unver-{}-{}.tar.gz", platform, arch);
 
     // Find download URL
     let assets = resp["assets"].as_array()
@@ -218,14 +218,29 @@ async fn self_update() -> anyhow::Result<()> {
     }
     std::fs::rename(&tmp_exe, &current_exe)?;
 
-    // Also update static/ directory from the release tarball
+    // Also update static/ directory from the release tarball (atomic via rename)
     let new_static = extract_dir.join("static");
     if new_static.exists() && new_static.is_dir() {
         let target_static = parent.join("static");
-        if target_static.exists() {
-            std::fs::remove_dir_all(&target_static)?;
+        let tmp_static = parent.join(".static.new");
+        // Clean up any leftover from a previous failed update
+        if tmp_static.exists() {
+            std::fs::remove_dir_all(&tmp_static)?;
         }
-        copy_dir_all(&new_static, &target_static)?;
+        copy_dir_all(&new_static, &tmp_static)?;
+        // Atomic swap: rename old out, rename new in
+        let old_static = parent.join(".static.old");
+        if target_static.exists() {
+            if old_static.exists() {
+                std::fs::remove_dir_all(&old_static)?;
+            }
+            std::fs::rename(&target_static, &old_static)?;
+        }
+        std::fs::rename(&tmp_static, &target_static)?;
+        // Clean up old
+        if old_static.exists() {
+            let _ = std::fs::remove_dir_all(&old_static);
+        }
     }
 
     println!("Updated to v{}! Restart to apply: unver restart", latest);
@@ -256,8 +271,8 @@ pub async fn self_update_programmatic() -> anyhow::Result<()> {
         anyhow::bail!("Already up-to-date (v{})", CURRENT_VERSION);
     }
 
-    let arch = detect_arch();
-    let asset_name = format!("unver-linux-{}.tar.gz", arch);
+    let (platform, arch) = detect_platform();
+    let asset_name = format!("unver-{}-{}.tar.gz", platform, arch);
 
     let assets = resp["assets"].as_array()
         .ok_or_else(|| anyhow::anyhow!("No assets in release"))?;
@@ -305,27 +320,44 @@ pub async fn self_update_programmatic() -> anyhow::Result<()> {
     }
     std::fs::rename(&tmp_exe, &current_exe)?;
 
-    // Also update static/ directory from the release tarball
+    // Also update static/ directory from the release tarball (atomic via rename)
     let new_static = extract_dir.join("static");
     if new_static.exists() && new_static.is_dir() {
         let target_static = parent.join("static");
-        if target_static.exists() {
-            std::fs::remove_dir_all(&target_static)?;
+        let tmp_static = parent.join(".static.new");
+        // Clean up any leftover from a previous failed update
+        if tmp_static.exists() {
+            std::fs::remove_dir_all(&tmp_static)?;
         }
-        copy_dir_all(&new_static, &target_static)?;
+        copy_dir_all(&new_static, &tmp_static)?;
+        // Atomic swap: rename old out, rename new in
+        let old_static = parent.join(".static.old");
+        if target_static.exists() {
+            if old_static.exists() {
+                std::fs::remove_dir_all(&old_static)?;
+            }
+            std::fs::rename(&target_static, &old_static)?;
+        }
+        std::fs::rename(&tmp_static, &target_static)?;
+        // Clean up old
+        if old_static.exists() {
+            let _ = std::fs::remove_dir_all(&old_static);
+        }
     }
 
     Ok(())
 }
 
-fn detect_arch() -> &'static str {
-    if cfg!(target_arch = "x86_64") {
+fn detect_platform() -> (&'static str, &'static str) {
+    let arch = if cfg!(target_arch = "x86_64") {
         "amd64"
     } else if cfg!(target_arch = "aarch64") {
         "arm64"
     } else {
         "arm64" // fallback (armv7 / OpenWrt use arm64 binary)
-    }
+    };
+    let platform = if cfg!(target_env = "musl") { "openwrt" } else { "linux" };
+    (platform, arch)
 }
 
 // ════════════════════════════════════════════════════════════════════════════

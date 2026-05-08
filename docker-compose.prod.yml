@@ -18,8 +18,8 @@ services:
     restart: unless-stopped
     network_mode: host
 #   ports:                          # Use these instead of network_mode: host
-#     - "80:80"                     #   HTTP → HTTPS redirect
-#     - "443:8443"                  #   HTTPS proxy (Unver default 8443)
+#     - "80:80"                     #   HTTP
+#     - "443:443"                   #   HTTPS (create a port group on 443 first)
 #     - "19688:19688"               #   Management UI & API
     volumes:
       - ./data:/app/data
