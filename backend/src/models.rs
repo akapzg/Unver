@@ -183,6 +183,7 @@ pub struct AppSettings {
     pub web_port: u16,
     pub web_interface: String,
     pub panel_lan_only: Option<bool>,
+    pub trusted_proxy: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -112,7 +112,6 @@ const Dashboard = () => {
   const { confirm } = useConfirm();
   const { stats, fetchStats } = useStore();
 
-  const [logs, setLogs] = useState([]);
   const [ddnsLogs, setDdnsLogs] = useState([]);
   const [sslLogs, setSslLogs] = useState([]);
   const [loginLogs, setLoginLogs] = useState([]);
@@ -129,7 +128,6 @@ const Dashboard = () => {
   const [updating, setUpdating] = useState(false);
 
   // Per-section error states
-  const [logsError, setLogsError] = useState(false);
   const [categorizedLogsErrors, setCategorizedLogsErrors] = useState({});
   const [netError, setNetError] = useState(false);
   const [publicIpError, setPublicIpError] = useState(false);
@@ -152,16 +150,6 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, [fetchStats]);
 
-  // Fetch all logs
-  const fetchAllLogs = useCallback(async () => {
-    try {
-      const { data } = await api.listLogs();
-      setLogs(data);
-      setLogsError(false);
-    } catch (_) { setLogsError(true); }
-  }, []);
-
-  // Fetch categorized logs
   const fetchCategorizedLogs = useCallback(async (category, setter) => {
     setLoadingLogs(prev => ({ ...prev, [category]: true }));
     try {
@@ -222,7 +210,6 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    fetchAllLogs();
     fetchCategorizedLogs('ddns', setDdnsLogs);
     fetchCategorizedLogs('ssl', setSslLogs);
     fetchCategorizedLogs('login', setLoginLogs);
@@ -243,7 +230,7 @@ const Dashboard = () => {
       clearInterval(logInterval);
       clearInterval(netInterval);
     };
-  }, [fetchAllLogs, fetchCategorizedLogs, fetchNetwork, fetchPublicIp]);
+  }, [fetchCategorizedLogs, fetchNetwork, fetchPublicIp]);
 
   // Update sub text renderer
   const renderUpdateSub = () => {

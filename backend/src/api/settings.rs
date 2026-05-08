@@ -36,6 +36,7 @@ pub async fn get_settings(
     let web_port: u16 = web_port_str.parse().unwrap_or(19688);
     let web_interface = get_setting(&state.db, "web_interface").await.unwrap_or_else(|_| "0.0.0.0".to_string());
     let panel_lan_only = get_setting(&state.db, "panel_lan_only").await.unwrap_or_default() == "true";
+    let trusted_proxy = get_setting(&state.db, "trusted_proxy").await.ok();
     let ddns_domains = get_setting(&state.db, "ddns_domains").await.unwrap_or_default();
 
     // Mask token
@@ -65,6 +66,7 @@ pub async fn get_settings(
         web_port,
         web_interface,
         panel_lan_only: Some(panel_lan_only),
+        trusted_proxy,
     }))
 }
 
@@ -528,12 +530,13 @@ pub async fn import_config(
         }
     }
 
-    // 5. Refresh certificate cache after import (important for new certs)
-    if cert_count > 0 {
-        let _ = crate::ssl::load_certs_to_cache(&state).await;
-    }
-
     tx.commit().await?;
+
+    // Refresh certificate cache after import (rules may have new ssl_enabled settings)
+    let _ = crate::ssl::load_certs_to_cache(&state).await;
+
+    // Reload proxy engine listeners (port groups may have changed)
+    let _ = state.port_group_reload.send(());
 
     tracing::info!("Config imported: {pg_count} port groups, {cert_count} certs, {rule_count} rules, {setting_count} settings");
     crate::logger::info(&state.db, &format!(
