@@ -56,6 +56,7 @@ unver version # 显示版本
 unver update  # 自动更新到最新版
 unver restart # 重启服务
 unver status  # 检查运行状态
+unver uninstall # 一键卸载（保留数据）
 ```
 
 ---
