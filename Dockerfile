@@ -38,7 +38,7 @@ COPY vendor ../vendor
 
 # Cache dependencies with a dummy build
 ENV DATABASE_URL=sqlite:///tmp/unver-build.db
-RUN for f in migrations/*.sql; do sqlite3 /tmp/unver-build.db < \"$f\"; done
+RUN for f in migrations/*.sql; do sqlite3 /tmp/unver-build.db < "$f"; done
 RUN mkdir -p src && echo "fn main() {}" > src/main.rs && \
     . /tmp/target.env && \
     if [ "${TARGETPLATFORM}" = "linux/amd64" ]; then \
