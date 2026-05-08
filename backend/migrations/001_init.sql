@@ -53,13 +53,13 @@ CREATE TABLE IF NOT EXISTS proxy_rules (
     updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Default port group (8443 → TLS + HTTP dual-mode)
+-- Default port group: HTTPS (8443) — disabled by default
 INSERT OR IGNORE INTO port_groups (id, name, listen_port, enabled, skip_tls_verify, force_https)
-VALUES ('pg-default', '反向代理 (8443)', 8443, 1, 0, 0);
+VALUES ('pg-default', 'HTTPS', 8443, 0, 0, 0);
 
--- HTTP→HTTPS redirect (port 80, disabled by default — enable if you own port 80)
+-- Default port group: HTTP (80) redirect to HTTPS — disabled by default
 INSERT OR IGNORE INTO port_groups (id, name, listen_port, enabled, skip_tls_verify, force_https)
-VALUES ('pg-redirect-80', 'HTTP 跳转 HTTPS (80)', 80, 0, 0, 1);
+VALUES ('pg-redirect-80', 'HTTP', 80, 0, 0, 1);
 
 CREATE TABLE IF NOT EXISTS certificates (
     id         TEXT PRIMARY KEY,

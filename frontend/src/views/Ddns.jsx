@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, Save, Zap, Plus, Trash2, X, Search } from 'lucide-react';
+import { Globe, Save, Zap, Plus, Trash2, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmDialog';
@@ -13,8 +13,7 @@ import { logStyle, logIcon } from '../utils/logHelpers';
 // Adding a new provider = just add an entry here + a provider_name option below.
 const PROVIDER_FIELDS = {
   cloudflare: [
-    { key: 'ddns_cf_token',  label: 'apiToken', type: 'password', placeholder: 'Cloudflare API Token',     hasFetchZones: false },
-    { key: 'ddns_cf_zone_id', label: 'zoneId',   type: 'text',     placeholder: 'leaveEmptyAuto',           hasFetchZones: true, optional: true },
+    { key: 'ddns_cf_token',  label: 'apiToken', type: 'password', placeholder: 'Cloudflare API Token' },
   ],
   aliyun: [
     { key: 'ddns_aliyun_access_key_id',     label: 'accessKeyId',     type: 'text',     placeholder: 'Aliyun AccessKey ID' },
@@ -57,8 +56,6 @@ const Ddns = () => {
   const [configs, setConfigs] = useState([makeDefaultConfig()]);
   const [domainStatuses, setDomainStatuses] = useState([]);
   const [saving, setSaving] = useState(false);
-  const [zones, setZones] = useState([]);
-  const [fetchingZones, setFetchingZones] = useState(false);
 
   // ── Load settings ──────────────────────────────────────────────────
 
@@ -131,11 +128,12 @@ const Ddns = () => {
         ddns_provider: cfg.ddns_provider,
         ddns_domains: cfg.ddns_domains,
       };
-      // Include all credential fields (backend stores whatever keys it receives)
       for (const k of ALL_PROVIDER_KEYS) payload[k] = cfg[k] || '';
       await updateSettings(payload);
       addToast(t('configSaved'), 'success');
       await fetchStatus();
+      // Auto pop log modal to show sync progress
+      handleTest();
     } catch (e) {
       addToast(t('ddnsUpdateFailed'), 'error');
     }
@@ -192,7 +190,6 @@ const Ddns = () => {
       if (cf) {
         add(`🔗 Cloudflare Token: ${cf.token_valid ? `✅ ${t('valid')}` : `❌ ${t('invalid')}`}`, cf.token_valid ? 'success' : 'error');
         if (cf.token_valid) {
-          add(`📋 Zone ID: ${data.config?.zone_id_set ? t('configured') : t('notConfigured')}`, data.config?.zone_id_set ? 'success' : 'info');
           add(`🌐 ${t('domainCountLabel')}: ${data.config?.domain_count || 0}`, 'info');
         }
       } else {
@@ -203,18 +200,6 @@ const Ddns = () => {
       add(`❌ ${t('testFailed')}: ${e.response?.data?.error || e.message}`, 'error');
     }
     setTestRunning(false);
-  };
-
-  const handleFetchZones = async (cfg) => {
-    setFetchingZones(true);
-    try {
-      const { data } = await api.ddnsListZones();
-      setZones(data.zones || []);
-      if (!data.zones?.length) addToast(t('noZonesFound'), 'info');
-    } catch (e) {
-      addToast(e.response?.data?.error || t('failed'), 'error');
-    }
-    setFetchingZones(false);
   };
 
   // ── Render ──────────────────────────────────────────────────────────
@@ -242,8 +227,6 @@ const Ddns = () => {
       
       {configs.map((cfg, idx) => {
         const currentFields = PROVIDER_FIELDS[cfg.ddns_provider] || [];
-        const zoneField = currentFields.find(f => f.hasFetchZones);
-
         return (
         <div key={cfg.id} className="glass-panel glass-card" style={{
           marginBottom: 12,
@@ -288,36 +271,14 @@ const Ddns = () => {
               {/* Dynamic credential fields */}
               {currentFields.map(field => (
                 <div className="form-group mb-3" key={field.key}>
-                  <label className="form-label">
-                    {t(field.label)}
-                    {field.optional && <span style={{opacity:0.5,fontSize:12}}> ({t('optional')})</span>}
-                  </label>
-                  {field.hasFetchZones ? (
-                    <div style={{display:'flex', gap:8}}>
-                      <input
-                        className="form-input" style={{flex:1}}
-                        type={field.type}
-                        value={cfg[field.key] || ''}
-                        onChange={e => updateConfig(cfg.id, field.key, e.target.value)}
-                        placeholder={t(field.placeholder)}
-                      />
-                      <button className="btn btn-primary btn-sm"
-                        onClick={() => handleFetchZones(cfg)}
-                        disabled={fetchingZones || !(cfg.ddns_cf_token)}
-                        type="button" style={{whiteSpace:'nowrap'}}>
-                        <Search size={14} />
-                        {fetchingZones ? t('fetching') : t('fetchZones')}
-                      </button>
-                    </div>
-                  ) : (
-                    <input
-                      className="form-input"
-                      type={field.type}
-                      value={cfg[field.key] || ''}
-                      onChange={e => updateConfig(cfg.id, field.key, e.target.value)}
-                      placeholder={t(field.placeholder)}
-                    />
-                  )}
+                  <label className="form-label">{t(field.label)}</label>
+                  <input
+                    className="form-input"
+                    type={field.type}
+                    value={cfg[field.key] || ''}
+                    onChange={e => updateConfig(cfg.id, field.key, e.target.value)}
+                    placeholder={t(field.placeholder)}
+                  />
                 </div>
               ))}
 

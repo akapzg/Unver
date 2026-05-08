@@ -1,3 +1,3 @@
--- Update default port group names to English and disable HTTPS by default
-UPDATE port_groups SET name = 'HTTPS' WHERE id = 'pg-default';
-UPDATE port_groups SET name = 'HTTP' WHERE id = 'pg-redirect-80';
+-- Migration no-op: 004 previously renamed default port groups (001 now uses correct names directly).
+-- Kept as placeholder to avoid sqlx "missing migration" errors on upgrades from older versions.
+SELECT 1;

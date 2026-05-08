@@ -23,7 +23,6 @@ pub async fn get_settings(
     let ddns_enabled = get_setting(&state.db, "ddns_enabled").await? == "true";
     let ddns_provider = get_setting(&state.db, "ddns_provider").await?;
     let ddns_cf_token = get_secret_setting(&state.db, "ddns_cf_token").await?;
-    let ddns_cf_zone_id = get_setting(&state.db, "ddns_cf_zone_id").await?;
     let ddns_domain = get_setting(&state.db, "ddns_domain").await?;
     let ddns_interval = get_setting(&state.db, "ddns_interval").await?.parse().unwrap_or(300);
     let ddns_ip_source = get_setting(&state.db, "ddns_ip_source").await.unwrap_or_else(|_| "public".to_string());
@@ -56,7 +55,6 @@ pub async fn get_settings(
         ddns_enabled,
         ddns_provider,
         ddns_cf_token: masked_token,
-        ddns_cf_zone_id,
         ddns_aliyun_access_key_id,
         ddns_aliyun_access_key_secret,
         ddns_domain,
@@ -102,9 +100,6 @@ pub async fn update_settings(
         if !is_masked && !token.is_empty() {
             set_secret_setting(&state.db, "ddns_cf_token", &token).await?;
         }
-    }
-    if let Some(zone) = body.ddns_cf_zone_id {
-        set_setting(&state.db, "ddns_cf_zone_id", &zone).await?;
     }
     if let Some(key_id) = body.ddns_aliyun_access_key_id {
         if !key_id.is_empty() {
@@ -912,7 +907,6 @@ pub async fn ddns_test(
 ) -> AppResult<Json<serde_json::Value>> {
     let provider = get_setting(&state.db, "ddns_provider").await.unwrap_or_default();
     let token = get_secret_setting(&state.db, "ddns_cf_token").await.unwrap_or_default();
-    let zone_id = get_setting(&state.db, "ddns_cf_zone_id").await.unwrap_or_default();
     let ddns_enabled = get_setting(&state.db, "ddns_enabled").await.unwrap_or_default() == "true";
     let domains = get_setting(&state.db, "ddns_domains").await.unwrap_or_default();
 
@@ -921,7 +915,6 @@ pub async fn ddns_test(
         "provider": provider,
         "config": {
             "token_set": !token.is_empty(),
-            "zone_id_set": !zone_id.is_empty(),
             "domains_configured": !domains.is_empty(),
             "domain_count": domains.lines().filter(|l| !l.trim().is_empty()).count(),
         },
@@ -948,7 +941,7 @@ pub async fn ddns_test(
 
     // Test Cloudflare connectivity
     if !token.is_empty() {
-        let cf_result = test_cloudflare(&client, &token, &zone_id).await;
+        let cf_result = test_cloudflare(&client, &token, "").await;
         results["cf_connectivity"] = cf_result;
     }
 
