@@ -64,6 +64,7 @@ Unver/
 │   │   ├── api/                # Axios API client
 │   │   └── i18n.js             # CN/EN translations
 │   └── vite.config.js
+├── static/ → frontend/dist/   # Dev symlink; CI/Docker: real dir alongside binary
 ├── docker-compose.yml          # Dev environment (local build)
 ├── docker-compose.prod.yml     # Production environment (pull image)
 ├── Dockerfile                  # Multi-arch build (amd64/arm64)
@@ -181,11 +182,10 @@ DATABASE_URL="sqlite:../data/unver.db" cargo build --release
 # Frontend
 cd frontend
 npm install && npm run build
-ln -sf ../frontend/dist backend/static
 
-# Run
+# Run (binary resolves static/ relative to its own location)
 cd backend
-DATABASE_URL="sqlite:../data/unver.db" ./target/release/unver
+DATABASE_URL="sqlite:../data/unver.db" ./target/release/unver start
 ```
 
 ### Release Process
@@ -222,6 +222,14 @@ url = "sqlite:data/unver.db"
 [proxy]
 default_port = 8443
 ```
+
+### Path Resolution
+
+`static_dir` and `data_dir` are resolved relative to the **binary's location** (not CWD).
+This means `/usr/bin/unver` looks for `/usr/bin/static/` and uses `$DATABASE_URL` for data
+regardless of where the service manager (systemd/procd) set the working directory.
+
+In Docker, the binary is at `/app/unver` and frontend files at `/app/static/`.
 
 ---
 

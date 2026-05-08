@@ -64,7 +64,7 @@ RUN apt-get update && apt-get install -y openssl ca-certificates sqlite3 libsqli
 
 # Copy binary and frontend artifacts
 COPY --from=backend-builder /tmp/unver-bin /app/unver
-COPY --from=frontend-builder /app/frontend/dist /app/dist
+COPY --from=frontend-builder /app/frontend/dist /app/static
 
 RUN mkdir -p /app/data
 

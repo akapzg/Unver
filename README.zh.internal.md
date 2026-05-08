@@ -60,6 +60,7 @@ Unver/
 │   │   ├── api/                # Axios API 客户端
 │   │   └── i18n.js             # 中/英文翻译
 │   └── vite.config.js
+├── static/ → frontend/dist/   # 开发符号链接；CI/Docker: 真实目录随二进制分发
 ├── docker-compose.yml          # 开发环境（本地 build）
 ├── docker-compose.prod.yml     # 生产环境（拉镜像）
 ├── Dockerfile                  # 多架构构建（amd64/arm64）
@@ -178,11 +179,10 @@ DATABASE_URL="sqlite:../data/unver.db" cargo build --release
 # 前端
 cd frontend
 npm install && npm run build
-ln -sf ../frontend/dist backend/static
 
-# 运行
+# 运行（二进制根据自身位置自动定位 static/）
 cd backend
-DATABASE_URL="sqlite:../data/unver.db" ./target/release/unver
+DATABASE_URL="sqlite:../data/unver.db" ./target/release/unver start
 ```
 
 ### Release 流程
@@ -219,6 +219,14 @@ url = "sqlite:data/unver.db"
 [proxy]
 default_port = 8443
 ```
+
+### 路径解析
+
+`static_dir` 和 `data_dir` 基于**二进制自身位置**解析（不再依赖 CWD）。
+即 `/usr/bin/unver` 会在 `/usr/bin/static/` 寻找前端文件，数据路径由 `$DATABASE_URL`
+决定，无论 systemd/procd 将工作目录设在哪里都不会出错。
+
+Docker 中二进制位于 `/app/unver`，前端文件位于 `/app/static/`。
 
 ---
 
