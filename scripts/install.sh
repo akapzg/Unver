@@ -48,6 +48,13 @@ sudo mv "$TMPDIR/unver" "$INSTALL_DIR/unver"
 sudo chmod +x "$INSTALL_DIR/unver"
 log "Binary installed to $INSTALL_DIR/unver"
 
+# ── Install static files ────────────────────────────────────────────────────
+if [ -d "$TMPDIR/static" ]; then
+    sudo rm -rf "$INSTALL_DIR/static"
+    sudo mv "$TMPDIR/static" "$INSTALL_DIR/static"
+    log "Static files installed to $INSTALL_DIR/static/"
+fi
+
 # ── Capability for privileged ports ────────────────────────────────────────
 if command -v setcap >/dev/null 2>&1; then
     sudo setcap cap_net_bind_service=+ep "$INSTALL_DIR/unver"

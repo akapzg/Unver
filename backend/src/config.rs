@@ -47,12 +47,12 @@ impl Config {
             .and_then(|p| p.parent().map(|p| p.to_path_buf()))
             .unwrap_or_else(|| PathBuf::from("."));
 
+        // Static files ship alongside the binary — resolve relative to it.
         if self.static_dir.is_relative() {
             self.static_dir = exe_dir.join(&self.static_dir);
         }
-        if self.data_dir.is_relative() {
-            self.data_dir = exe_dir.join(&self.data_dir);
-        }
+        // data_dir intentionally NOT resolved — it's controlled by
+        // DATABASE_URL / UNVER_CONFIG env vars and may live anywhere.
     }
 
     pub fn database_path(&self) -> PathBuf {
