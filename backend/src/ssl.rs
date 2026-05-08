@@ -51,6 +51,9 @@ pub async fn load_certs_to_cache(state: &Arc<AppState>) -> AppResult<()> {
         }
     }
 
+    // Sort: wildcards first, exact certs last → exact overwrites wildcard on conflict
+    decrypted.sort_by_key(|(_, domain, _, _)| !domain.starts_with("*."));
+
     // Only cache certs for rules with ssl_enabled=true (NPM-style: per-domain control)
     let ssl_rules = sqlx::query!(
         "SELECT domain, cert_id FROM proxy_rules WHERE ssl_enabled = 1 AND enabled = 1"
@@ -64,8 +67,8 @@ pub async fn load_certs_to_cache(state: &Arc<AppState>) -> AppResult<()> {
                 let covers = if rule.cert_id.as_deref() == Some(id.as_str()) {
                     // Explicit cert_id binding — always match
                     true
-                } else if rule.cert_id.is_none() {
-                    // Auto-match: cert domain covers rule domain
+                } else if rule.cert_id.as_deref().map_or(true, |s| s.is_empty()) {
+                    // Auto-match: no cert_id set (None or empty string)
                     cert_covers_domain(cert_domain, &rule.domain)
                 } else {
                     false // rule binds to a different cert, skip

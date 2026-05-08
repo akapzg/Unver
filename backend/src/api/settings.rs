@@ -793,14 +793,12 @@ pub async fn delete_certificate(
     sqlx::query!("DELETE FROM certificates WHERE id = ?", id)
         .execute(&state.db).await?;
 
-    // Disable SSL and clear cert_id on all proxy rules using this certificate
-    sqlx::query!("UPDATE proxy_rules SET ssl_enabled = 0, cert_id = NULL, updated_at = datetime('now') WHERE domain = ?", domain)
+    // Disable SSL and clear cert_id on rules that explicitly bind this certificate
+    sqlx::query!("UPDATE proxy_rules SET ssl_enabled = 0, cert_id = NULL, updated_at = datetime('now') WHERE cert_id = ?", id)
         .execute(&state.db).await?;
 
-    // Remove from TLS cache
-    if let Ok(mut cache) = state.cert_cache.write() {
-        cache.remove(&domain.to_lowercase());
-    }
+    // Rebuild cert cache — auto-matched rules lose the cert naturally
+    let _ = crate::ssl::load_certs_to_cache(&state).await;
 
     // Clean up _acme-challenge TXT records from Cloudflare (best-effort)
     let domain2 = domain.clone();
