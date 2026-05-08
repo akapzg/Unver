@@ -47,12 +47,20 @@ impl Config {
             .and_then(|p| p.parent().map(|p| p.to_path_buf()))
             .unwrap_or_else(|| PathBuf::from("."));
 
+        // If DATABASE_URL is set in environment, use it to override data_dir
+        if let Ok(url) = std::env::var("DATABASE_URL") {
+            let path = url.replace("sqlite:", "");
+            self.data_dir = std::path::PathBuf::from(path).parent().unwrap_or(std::path::Path::new("/")).to_path_buf();
+        }
+
         // Static files ship alongside the binary — resolve relative to it.
         if self.static_dir.is_relative() {
             self.static_dir = exe_dir.join(&self.static_dir);
         }
-        // data_dir intentionally NOT resolved — it's controlled by
-        // DATABASE_URL / UNVER_CONFIG env vars and may live anywhere.
+        // data_dir intentionally NOT resolved if already absolute (from env override)
+        if self.data_dir.is_relative() {
+            self.data_dir = exe_dir.join(&self.data_dir);
+        }
     }
 
     pub fn database_path(&self) -> PathBuf {

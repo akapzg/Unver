@@ -38,21 +38,27 @@ pub async fn require_auth(
 /// (in addition to normal JWT session).
 async fn authenticate(state: &Arc<AppState>, headers: &HeaderMap) -> Result<String, AppError> {
     let jwt_secret = get_setting(&state.db, "jwt_secret").await?;
-
-    // 1. Try Bearer token
-    if let Some(auth_header) = headers.get("Authorization") {
-        let header_str = auth_header.to_str().unwrap_or("");
-        if let Some(token) = header_str.strip_prefix("Bearer ") {
-            return validate_access_token(token, &jwt_secret);
-        }
-    }
-
-    // 2. Try API key (X-API-Key header) — only if api_auth_enabled = true
     let api_auth_enabled = get_setting(&state.db, "api_auth_enabled")
         .await
         .unwrap_or_default()
         == "true";
 
+    // 1. Try Bearer token (JWT first, fall through to API key)
+    if let Some(auth_header) = headers.get("Authorization") {
+        let header_str = auth_header.to_str().unwrap_or("");
+        if let Some(token) = header_str.strip_prefix("Bearer ") {
+            // Try JWT first
+            if let Ok(user_id) = validate_access_token(token, &jwt_secret) {
+                return Ok(user_id);
+            }
+            // JWT failed — try as API key
+            if token.starts_with("unver_") && api_auth_enabled {
+                return verify_api_key(state, token).await;
+            }
+        }
+    }
+
+    // 2. Try API key (X-API-Key header) — only if api_auth_enabled = true
     if api_auth_enabled {
         if let Some(api_key) = headers.get("X-API-Key") {
             let key_str = api_key.to_str().unwrap_or("");
