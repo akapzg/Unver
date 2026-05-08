@@ -172,7 +172,13 @@ docker buildx build --platform linux/amd64,linux/arm64 -t unver:latest .
 
 ## Build & Release
 
-### Manual Build
+### CLI Commands
+
+- `unver start`: Start service
+- `unver status`: Check service status
+- `unver restart`: Restart service
+- `unver update`: Self-update
+- `unver uninstall`: Uninstall (preserves data)
 
 ```bash
 # Backend

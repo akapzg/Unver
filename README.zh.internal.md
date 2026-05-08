@@ -169,7 +169,13 @@ docker buildx build --platform linux/amd64,linux/arm64 -t unver:latest .
 
 ## 构建与发布
 
-### 手动构建
+### CLI 命令
+
+- `unver start`: 启动服务
+- `unver status`: 查看服务状态
+- `unver restart`: 重启服务
+- `unver update`: 在线升级
+- `unver uninstall`: 一键卸载（保留数据）
 
 ```bash
 # 后端
