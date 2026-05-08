@@ -218,6 +218,16 @@ async fn self_update() -> anyhow::Result<()> {
     }
     std::fs::rename(&tmp_exe, &current_exe)?;
 
+    // Also update static/ directory from the release tarball
+    let new_static = extract_dir.join("static");
+    if new_static.exists() && new_static.is_dir() {
+        let target_static = parent.join("static");
+        if target_static.exists() {
+            std::fs::remove_dir_all(&target_static)?;
+        }
+        copy_dir_all(&new_static, &target_static)?;
+    }
+
     println!("Updated to v{}! Restart to apply: unver restart", latest);
     Ok(())
 }
@@ -294,6 +304,16 @@ pub async fn self_update_programmatic() -> anyhow::Result<()> {
         std::fs::set_permissions(&tmp_exe, std::fs::Permissions::from_mode(0o755))?;
     }
     std::fs::rename(&tmp_exe, &current_exe)?;
+
+    // Also update static/ directory from the release tarball
+    let new_static = extract_dir.join("static");
+    if new_static.exists() && new_static.is_dir() {
+        let target_static = parent.join("static");
+        if target_static.exists() {
+            std::fs::remove_dir_all(&target_static)?;
+        }
+        copy_dir_all(&new_static, &target_static)?;
+    }
 
     Ok(())
 }
@@ -533,4 +553,20 @@ fn uninstall() {
     println!("Data directory was preserved. To remove it manually:");
     println!("  rm -rf /var/lib/unver      (Linux)");
     println!("  rm -rf /etc/unver          (OpenWrt)");
+}
+
+/// Recursively copy a directory.
+fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let target = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_all(&entry.path(), &target)?;
+        } else {
+            std::fs::copy(entry.path(), &target)?;
+        }
+    }
+    Ok(())
 }
