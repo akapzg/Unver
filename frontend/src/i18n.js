@@ -262,6 +262,7 @@ const resources = {
       // ── Proxies ──
       copiedToClipboard: '已复制到剪贴板',
       copyFailed: '复制失败',
+      fullKeyHidden: '仅创建时可见',
       type: '类型',
       ssl: 'SSL',
       ruleTypeRedirect: '跳转',
@@ -576,6 +577,7 @@ const resources = {
       // ── Proxies ──
       copiedToClipboard: 'Copied to clipboard',
       copyFailed: 'Copy failed',
+      fullKeyHidden: 'Visible only at creation',
       type: 'Type',
       ssl: 'SSL',
       ruleTypeRedirect: 'Redirect',

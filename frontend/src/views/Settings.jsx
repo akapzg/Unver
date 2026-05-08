@@ -307,6 +307,7 @@ const Settings = () => {
           ) : (
             apiKeys.slice(0, 1).map(key => {
               const displayKey = apiKeyFull || (key.key_prefix || '');
+              const hasFullKey = !!apiKeyFull;
               const masked = displayKey.length > 4
                 ? `${displayKey.slice(0, 2)}****${displayKey.slice(-2)}`
                 : '****';
@@ -316,17 +317,20 @@ const Settings = () => {
                   <span style={{ flex: 2, textAlign: 'center' }}>
                     <span
                       className="mono"
-                      style={{ cursor: 'pointer', userSelect: 'all' }}
+                      style={{ cursor: hasFullKey ? 'pointer' : 'default', userSelect: 'all' }}
                       onMouseEnter={() => setHoveredKey(true)}
                       onMouseLeave={() => setHoveredKey(false)}
                     >
                       {hoveredKey ? displayKey : masked}
                     </span>
+                    {!hasFullKey && <span className="text-muted text-sm" style={{ marginLeft: 6 }}>({t('fullKeyHidden')})</span>}
                   </span>
                   <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-                    <button className="btn btn-ghost btn-icon btn-sm" onClick={() => copyToClipboard(displayKey)} title={t('copy')}>
-                      {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
-                    </button>
+                    {hasFullKey && (
+                      <button className="btn btn-ghost btn-icon btn-sm" onClick={() => copyToClipboard(displayKey)} title={t('copy')}>
+                        {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
+                      </button>
+                    )}
                     <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleDeleteKey(key)} title={t('delete')}>
                       <Trash2 size={14} />
                     </button>
