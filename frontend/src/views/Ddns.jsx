@@ -392,6 +392,7 @@ const Ddns = () => {
             <div className="modal-body" style={{ padding: '0 16px 16px' }}>
               <div style={{
                 background: 'var(--bg-secondary, #1a1a2e)',
+                color: '#e0e0e0',
                 borderRadius: 8, padding: 12,
                 minHeight: 140, maxHeight: 320, overflowY: 'auto',
                 fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
