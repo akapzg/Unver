@@ -25,6 +25,8 @@ pub enum Commands {
     Restart,
     /// Check if Unver service is running
     Status,
+    /// Uninstall Unver — removes binary, static files, and init scripts (keeps data by default)
+    Uninstall,
 }
 
 /// Entry point — determine whether to run CLI command or start interactive menu / service.
@@ -52,6 +54,10 @@ pub async fn run() -> anyhow::Result<bool> {
             show_status();
             process::exit(0);
         }
+        Some(Commands::Uninstall) => {
+            uninstall();
+            process::exit(0);
+        }
         None => {
             // No subcommand → interactive menu
             interactive_menu().await?;
@@ -74,10 +80,11 @@ async fn interactive_menu() -> anyhow::Result<()> {
     println!("  [3] Restart service");
     println!("  [4] Self-update");
     println!("  [5] Version");
+    println!("  [6] Uninstall");
     println!("  [0] Exit");
     println!();
 
-    let choice = read_number("Select [0-5]: ");
+    let choice = read_number("Select [0-6]: ");
 
     match choice {
         1 => {
@@ -96,6 +103,7 @@ async fn interactive_menu() -> anyhow::Result<()> {
         3 => restart_service()?,
         4 => self_update().await?,
         5 => println!("unver v{}", CURRENT_VERSION),
+        6 => uninstall(),
         0 => println!("Bye!"),
         _ => eprintln!("Invalid choice"),
     }
@@ -381,4 +389,78 @@ fn find_unver_pids(exclude_path: &str, exclude_pid: u32) -> Vec<u32> {
         }
     }
     pids
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Uninstall
+// ════════════════════════════════════════════════════════════════════════════
+
+fn uninstall() {
+    println!("Uninstalling Unver...");
+    println!();
+
+    let current_exe = std::env::current_exe().unwrap_or_default();
+    let current_path = current_exe.to_string_lossy();
+    let exe_dir = current_exe.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+
+    // 1. Stop running services
+    let pids = find_unver_pids(&current_path, std::process::id());
+    for pid in &pids {
+        println!("Stopping Unver (PID {})...", pid);
+        unsafe { libc::kill(*pid as i32, libc::SIGTERM); }
+    }
+    if !pids.is_empty() {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+
+    // 2. Remove init scripts
+    // systemd
+    let systemd_unit = "/etc/systemd/system/unver.service";
+    if std::path::Path::new(systemd_unit).exists() {
+        let _ = process::Command::new("systemctl")
+            .args(["stop", "unver"])
+            .output();
+        let _ = process::Command::new("systemctl")
+            .args(["disable", "unver"])
+            .output();
+        if std::fs::remove_file(systemd_unit).is_ok() {
+            println!("Removed: {}", systemd_unit);
+        }
+        let _ = process::Command::new("systemctl").arg("daemon-reload").output();
+    }
+
+    // procd (OpenWrt)
+    let procd_unit = "/etc/init.d/unver";
+    if std::path::Path::new(procd_unit).exists() {
+        let _ = process::Command::new(procd_unit)
+            .arg("stop")
+            .output();
+        let _ = process::Command::new(procd_unit)
+            .arg("disable")
+            .output();
+        if std::fs::remove_file(procd_unit).is_ok() {
+            println!("Removed: {}", procd_unit);
+        }
+    }
+
+    // 3. Remove binary and static files
+    let binary = exe_dir.join("unver");
+    if binary.exists() {
+        if std::fs::remove_file(&binary).is_ok() {
+            println!("Removed: {}", binary.display());
+        }
+    }
+
+    let static_dir = exe_dir.join("static");
+    if static_dir.exists() {
+        if std::fs::remove_dir_all(&static_dir).is_ok() {
+            println!("Removed: {}", static_dir.display());
+        }
+    }
+
+    println!();
+    println!("Uninstall complete.");
+    println!("Data directory was preserved. To remove it manually:");
+    println!("  rm -rf /var/lib/unver      (Linux)");
+    println!("  rm -rf /etc/unver          (OpenWrt)");
 }

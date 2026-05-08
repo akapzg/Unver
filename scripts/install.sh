@@ -77,7 +77,6 @@ Wants=network-online.target
 [Service]
 Type=simple
 ExecStart=$INSTALL_DIR/unver start
-WorkingDirectory=$DATA_DIR
 Environment=DATABASE_URL=sqlite:$DATA_DIR/unver.db
 Environment=RUST_LOG=unver=info,tower_http=warn
 Restart=on-failure
@@ -101,3 +100,4 @@ log "  Start:   sudo systemctl start unver"
 log "  Status:  sudo systemctl status unver"
 log "  Logs:    journalctl -u unver -f"
 log "  UI:      http://localhost:19688"
+log "  Uninstall: sudo unver uninstall"
