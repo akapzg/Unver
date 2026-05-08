@@ -1,5 +1,4 @@
 -- Unver Database Schema, Migration 002
--- cert_id and ddns_domains are now in 001_init.sql
--- This migration exists only for version history.
+-- Adds cert_id column to proxy_rules for explicit certificate binding
 
-SELECT 1;
+ALTER TABLE proxy_rules ADD COLUMN cert_id TEXT;
