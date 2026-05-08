@@ -41,7 +41,7 @@ fi
 TMPDIR=$(mktemp -d)
 
 # ── Clean fallback data from previous installs ───────────────────────────────
-sudo rm -rf "$INSTALL_DIR/data" 2>/dev/null || true
+sudo rm -f "$INSTALL_DIR/data/unver.db" "$INSTALL_DIR/data/unver.db-wal" "$INSTALL_DIR/data/unver.db-shm" 2>/dev/null || true
 
 log "Downloading: $URL"
 curl -fsSL "$URL" -o "$TMPDIR/unver.tar.gz" || err "Download failed"
