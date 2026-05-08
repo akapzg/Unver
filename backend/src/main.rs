@@ -65,10 +65,12 @@ async fn main() -> Result<()> {
 
     // ── Shutdown signal (broadcast to all spawned tasks) ─────────────────────
     let (shutdown_tx, _) = broadcast::channel::<()>(1);
+    // Port group reload signal (watch channel — proxy engine listens for changes)
+    let (pg_reload_tx, _pg_reload_rx) = tokio::sync::watch::channel(());
 
     let pool = db::setup(&config).await?;
     let net_tracker = Arc::new(tokio::sync::RwLock::new(network::NetTracker::new()));
-    let state = Arc::new(state::AppState::new(config.clone(), pool, Arc::clone(&net_tracker)));
+    let state = Arc::new(state::AppState::new(config.clone(), pool, Arc::clone(&net_tracker), Arc::new(pg_reload_tx)));
 
     state::ensure_jwt_secret(&state).await?;
 

@@ -97,6 +97,11 @@ pub async fn create(
     .execute(&state.db)
     .await?;
 
+    // Refresh cert cache if SSL is enabled — new rule may need a cert
+    if body.ssl_enabled {
+        let _ = crate::ssl::load_certs_to_cache(&state).await;
+    }
+
     let row = sqlx::query!(
         r#"SELECT id, name, domain, target_url, rule_type, redirect_code, port_group_id,
            ssl_enabled, cert_id, force_https, enabled, status,
@@ -173,6 +178,8 @@ pub async fn update(
     if let Some(enabled) = body.enabled {
         sqlx::query!("UPDATE proxy_rules SET enabled = ?, updated_at = datetime('now') WHERE id = ?", enabled, id)
             .execute(&state.db).await?;
+        // Refresh cert cache — enabling/disabling affects which domains get certs
+        let _ = crate::ssl::load_certs_to_cache(&state).await;
     }
     if let Some(pg_id) = body.port_group_id {
         sqlx::query!("UPDATE proxy_rules SET port_group_id = ?, updated_at = datetime('now') WHERE id = ?", pg_id, id)
@@ -211,6 +218,10 @@ pub async fn delete(
     }
 
     tracing::info!("Deleted proxy rule: {id}");
+
+    // Refresh cert cache — removed rule may have had a cert binding
+    let _ = crate::ssl::load_certs_to_cache(&state).await;
+
     Ok(Json(json!({ "message": "Deleted" })))
 }
 

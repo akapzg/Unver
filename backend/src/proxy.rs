@@ -367,8 +367,39 @@ fn build_tls_server_config(
 pub async fn run_proxy_engine(state: Arc<AppState>) {
     let verified_client = Arc::new(build_verified_client());
     let skip_verify_client = Arc::new(build_skip_verify_client());
+    let mut reload_rx = state.port_group_reload.subscribe();
 
-    // Load enabled port groups
+    // Track active listeners: pg_id → (JoinHandle, port)
+    let mut listeners: HashMap<String, (tokio::task::JoinHandle<()>, u16)> = HashMap::new();
+
+    // Initial load
+    reload_listeners(&state, &mut listeners, &verified_client, &skip_verify_client).await;
+
+    loop {
+        // Reload on any port group change
+        if reload_rx.changed().await.is_err() {
+            tracing::info!("Port group reload channel closed — proxy engine shutting down");
+            break;
+        }
+        tracing::info!("Port group changed — reloading listeners");
+        // Abort all existing listeners
+        for (pg_id, (handle, port)) in listeners.drain() {
+            handle.abort();
+            tracing::info!("Stopped listener for {pg_id} on :{port}");
+        }
+        // Small sleep to let OS release ports
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        // Reload from DB
+        reload_listeners(&state, &mut listeners, &verified_client, &skip_verify_client).await;
+    }
+}
+
+async fn reload_listeners(
+    state: &Arc<AppState>,
+    listeners: &mut HashMap<String, (tokio::task::JoinHandle<()>, u16)>,
+    verified_client: &Arc<ProxyClient>,
+    skip_verify_client: &Arc<ProxyClient>,
+) {
     let groups = match sqlx::query!(
         "SELECT id, name, listen_port, skip_tls_verify, force_https FROM port_groups WHERE enabled = 1 ORDER BY listen_port"
     )
@@ -386,19 +417,20 @@ pub async fn run_proxy_engine(state: Arc<AppState>) {
 
     for g in groups {
         let pg_id = g.id.unwrap_or_default();
+        let pg_id_for_map = pg_id.clone();
         let port = g.listen_port as u16;
         let skip_tls = g.skip_tls_verify != 0;
         let force_https = g.force_https != 0;
 
-        let listener_state = Arc::clone(&state);
+        let listener_state = Arc::clone(state);
         let listener_client = if skip_tls {
-            Arc::clone(&skip_verify_client)
+            Arc::clone(skip_verify_client)
         } else {
-            Arc::clone(&verified_client)
+            Arc::clone(verified_client)
         };
-        let tls_config = build_tls_server_config(Arc::clone(&state.cert_cache));
+        let tls_config = build_tls_server_config(Arc::clone(&listener_state.cert_cache));
 
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
             let listener = match tokio::net::TcpListener::bind(addr).await {
                 Ok(l) => l,
@@ -427,6 +459,7 @@ pub async fn run_proxy_engine(state: Arc<AppState>) {
                 });
             }
         });
+        listeners.insert(pg_id_for_map, (handle, port));
     }
 }
 

@@ -35,13 +35,15 @@ pub struct AppState {
     pub net_tracker: SharedNetTracker,
     /// Server start time for uptime display
     pub start_time: std::time::Instant,
+    /// Signal to reload port group listeners after create/update/delete
+    pub port_group_reload: Arc<tokio::sync::watch::Sender<()>>,
 }
 
 impl AppState {
-    pub fn new(config: Config, db: SqlitePool, net_tracker: SharedNetTracker) -> Self {
+    pub fn new(config: Config, db: SqlitePool, net_tracker: SharedNetTracker, port_group_reload: Arc<tokio::sync::watch::Sender<()>>) -> Self {
         let quota = Quota::per_minute(NonZeroU32::new(10).unwrap());
         let login_limiter = Arc::new(RateLimiter::direct(quota));
-        Self { config, db, login_limiter, cert_cache: Arc::new(RwLock::new(HashMap::new())), background_jobs: Arc::new(tokio::sync::Mutex::new(HashMap::new())), background_job_logs: Arc::new(tokio::sync::Mutex::new(HashMap::new())), net_tracker, start_time: std::time::Instant::now() }
+        Self { config, db, login_limiter, cert_cache: Arc::new(RwLock::new(HashMap::new())), background_jobs: Arc::new(tokio::sync::Mutex::new(HashMap::new())), background_job_logs: Arc::new(tokio::sync::Mutex::new(HashMap::new())), net_tracker, start_time: std::time::Instant::now(), port_group_reload }
     }
 
     /// In-memory dummy state for unit tests — no real DB, no network.
@@ -54,7 +56,8 @@ impl AppState {
             .await
             .expect("in-memory sqlite for test");
         let net_tracker = Arc::new(tokio::sync::RwLock::new(crate::network::NetTracker::new()));
-        Self::new(Config::default(), db, net_tracker)
+        let (pg_reload, _) = tokio::sync::watch::channel(());
+        Self::new(Config::default(), db, net_tracker, Arc::new(pg_reload))
     }
 }
 

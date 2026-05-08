@@ -133,6 +133,9 @@ pub async fn create(
     .execute(&state.db)
     .await?;
 
+    // Notify proxy engine to reload listeners
+    let _ = state.port_group_reload.send(());
+
     get(State(state), Path(id)).await
 }
 
@@ -189,6 +192,9 @@ pub async fn update(
             .execute(&state.db).await?;
     }
 
+    // Notify proxy engine to reload listeners
+    let _ = state.port_group_reload.send(());
+
     get(State(state), Path(id)).await
 }
 
@@ -212,5 +218,9 @@ pub async fn delete(
         .await?;
 
     tracing::info!("Deleted port group: {id}");
+
+    // Notify proxy engine to reload listeners
+    let _ = state.port_group_reload.send(());
+
     Ok(Json(json!({ "message": "Deleted" })))
 }
