@@ -275,7 +275,9 @@ pub async fn issue_certificate_multi(
         let dns_value = BASE64_URL_SAFE_NO_PAD.encode(hasher.finalize());
 
        push_log(&log, "info", &format!("  🌐 DNS TXT: _acme-challenge.{identifier}"));
-       let rid = provider.create_acme_txt(state, &identifier, &dns_value).await
+       // Strip "*. " prefix for wildcard: TXT record must go on the bare domain
+       let acme_txt_domain = identifier.strip_prefix("*.").unwrap_or(&identifier);
+       let rid = provider.create_acme_txt(state, acme_txt_domain, &dns_value).await
            .map_err(|e| AppError::Internal(anyhow::anyhow!("Create TXT: {e}")))?;
        push_log(&log, "success", "  ✅ TXT 已创建");
 
@@ -294,7 +296,7 @@ pub async fn issue_certificate_multi(
            }
        }
        if ok { push_log(&log, "success", "  ✅ DNS-01 通过"); }
-       let _ = provider.delete_acme_txt(state, &identifier, &rid).await;
+       let _ = provider.delete_acme_txt(state, acme_txt_domain, &rid).await;
     }
 
     push_log(&log, "info", "⏳ 等待订单就绪...");
@@ -445,7 +447,8 @@ pub async fn issue_certificate_sync(
        let dns_value = BASE64_URL_SAFE_NO_PAD.encode(hasher.finalize());
 
        push("info", &format!("  🌐 DNS TXT: _acme-challenge.{identifier}"));
-       let rid = provider.create_acme_txt(state, &identifier, &dns_value).await
+       let acme_txt_domain = identifier.strip_prefix("*.").unwrap_or(&identifier);
+       let rid = provider.create_acme_txt(state, acme_txt_domain, &dns_value).await
            .map_err(|e| format!("Create TXT: {e}"))?;
        push("success", "  ✅ TXT 已创建");
 
@@ -462,22 +465,22 @@ pub async fn issue_certificate_sync(
            match st {
                AuthorizationStatus::Valid => { ok = true; break; }
                AuthorizationStatus::Invalid => {
-                   let _ = provider.delete_acme_txt(state, &identifier, &rid).await;
+                   let _ = provider.delete_acme_txt(state, acme_txt_domain, &rid).await;
                    return Err("Challenge invalid".to_string());
                }
                _ if i == 120 => {
-                   let _ = provider.delete_acme_txt(state, &identifier, &rid).await;
+                   let _ = provider.delete_acme_txt(state, acme_txt_domain, &rid).await;
                    return Err("Validation timeout (240s)".to_string());
                }
                _ => {}
            }
        }
        if !ok {
-           let _ = provider.delete_acme_txt(state, &identifier, &rid).await;
+           let _ = provider.delete_acme_txt(state, acme_txt_domain, &rid).await;
            return Err("Validation failed".to_string());
        }
        push("success", "  ✅ DNS-01 通过");
-       let _ = provider.delete_acme_txt(state, &identifier, &rid).await;
+       let _ = provider.delete_acme_txt(state, acme_txt_domain, &rid).await;
     }
 
     // Wait for order to be ready
