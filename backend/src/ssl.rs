@@ -78,9 +78,14 @@ pub fn load_cert_into_cache(cert_pem: &str, key_pem: &str) -> AppResult<rustls::
 pub fn parse_cert_expiry(cert_pem: &str) -> Option<String> {
     let cert = openssl::x509::X509::from_pem(cert_pem.as_bytes()).ok()?;
     let not_after = cert.not_after();
-    let now = openssl::asn1::Asn1Time::days_from_now(0).ok()?;
-    let diff = not_after.diff(&now).ok()?;
-    let expiry = chrono::Utc::now() + chrono::Duration::seconds(diff.secs as i64);
+    // Parse ASN1_TIME string "MMM DD HH:MM:SS YYYY GMT" directly
+    // (avoids Asn1Time::diff platform quirks on musl/aarch64)
+    let s = not_after.to_string();
+    let naive = chrono::NaiveDateTime::parse_from_str(
+        s.trim_end_matches(" GMT"),
+        "%b %e %H:%M:%S %Y"
+    ).ok()?;
+    let expiry = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(naive, chrono::Utc);
     Some(expiry.to_rfc3339())
 }
 
