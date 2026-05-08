@@ -93,13 +93,11 @@ STOP=10
 USE_PROCD=1
 
 PROG=/usr/bin/unver
-DATA_DIR=/etc/unver/data
 
 start_service() {
     procd_open_instance
     procd_set_param command "\$PROG" "start"
-    procd_set_param env DATABASE_URL="sqlite:\$DATA_DIR/unver.db"
-    procd_set_param env RUST_LOG="unver=info,tower_http=warn"
+    procd_set_param env DATABASE_URL=sqlite:/etc/unver/data/unver.db
     procd_set_param limits nofile="65536 65536"
     procd_set_param respawn 3600 5 5
     procd_set_param stdout 1
