@@ -15,6 +15,61 @@ use crate::models::LogLine;
 
 const LETS_ENCRYPT_URL: &str = "https://acme-v02.api.letsencrypt.org/directory";
 const LETS_ENCRYPT_STAGING: &str = "https://acme-staging-v02.api.letsencrypt.org/directory";
+const ZEROSSL_URL: &str = "https://acme.zerossl.com/v2/DV90";
+const ZEROSSL_EAB_API: &str = "https://api.zerossl.com/acme/eab-credentials";
+
+/// Return the ACME directory URL and optional EAB credentials
+/// based on the configured acme_provider setting.
+async fn get_acme_url(state: &Arc<AppState>) -> AppResult<(String, Option<(String, String)>)> {
+    let provider = get_setting(&state.db, "acme_provider").await.unwrap_or_else(|_| "letsencrypt".to_string());
+    let use_staging = get_setting(&state.db, "acme_staging").await.unwrap_or_default() == "true";
+
+    let url = match provider.as_str() {
+        "zerossl" => ZEROSSL_URL,
+        _ if use_staging => LETS_ENCRYPT_STAGING,
+        _ => LETS_ENCRYPT_URL,
+    };
+
+    let eab = if provider == "zerossl" {
+        let kid = get_secret_setting(&state.db, "zerossl_eab_kid").await.unwrap_or_default();
+        let hmac = get_secret_setting(&state.db, "zerossl_eab_hmac").await.unwrap_or_default();
+        if !kid.is_empty() && !hmac.is_empty() {
+            Some((kid, hmac))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    Ok((url.to_string(), eab))
+}
+
+/// Register ZeroSSL EAB credentials via the ZeroSSL API.
+/// Returns (eab_kid, eab_hmac_key).
+async fn auto_register_zerossl_eab(email: &str) -> AppResult<(String, String)> {
+    let client = reqwest::Client::new();
+    let resp = client.post(ZEROSSL_EAB_API)
+        .json(&serde_json::json!({
+            "success_url": "https://unver.local",
+            "email": email,
+        }))
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("ZeroSSL EAB request failed: {e}")))?;
+
+    let body: serde_json::Value = resp.json().await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("ZeroSSL EAB parse: {e}")))?;
+
+    let eab_kid = body["eab_kid"].as_str()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing eab_kid in ZeroSSL response")))?
+        .to_string();
+    let eab_hmac_key = body["eab_hmac_key"].as_str()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing eab_hmac_key in ZeroSSL response")))?
+        .to_string();
+
+    Ok((eab_kid, eab_hmac_key))
+}
 
 pub async fn run_ssl_manager(state: Arc<AppState>) {
     tracing::info!("SSL manager started");
@@ -176,11 +231,20 @@ pub async fn issue_certificate_multi(
    provider_name: &str,
    log: Option<Arc<tokio::sync::Mutex<Vec<LogLine>>>>,
 ) -> AppResult<()> {
-    let use_staging = get_setting(&state.db, "acme_staging").await.unwrap_or_default() == "true";
-    let acme_url = if use_staging { LETS_ENCRYPT_STAGING } else { LETS_ENCRYPT_URL };
-    push_log(&log, "info", &format!("🔐 ACME (staging={use_staging})"));
+    let (acme_url, mut eab) = get_acme_url(state).await?;
+    let provider = get_setting(&state.db, "acme_provider").await.unwrap_or_else(|_| "letsencrypt".to_string());
+    push_log(&log, "info", &format!("🔐 ACME provider={provider}"));
 
-    let account = get_or_create_account(state, email, acme_url).await?;
+    if provider == "zerossl" && eab.is_none() {
+        push_log(&log, "info", "🔑 注册 ZeroSSL EAB 凭证...");
+        let (kid, hmac) = auto_register_zerossl_eab(email).await?;
+        set_secret_setting(&state.db, "zerossl_eab_kid", &kid).await?;
+        set_secret_setting(&state.db, "zerossl_eab_hmac", &hmac).await?;
+        eab = Some((kid, hmac));
+        push_log(&log, "success", "ZeroSSL EAB 凭证已注册");
+    }
+
+    let account = get_or_create_account(state, email, &acme_url, eab).await?;
    push_log(&log, "success", "ACME 账户就绪");
 
    let ids: Vec<Identifier> = domains.iter().map(|d| Identifier::Dns(d.clone())).collect();
@@ -265,7 +329,7 @@ pub async fn issue_certificate_multi(
     Ok(())
 }
 
-async fn get_or_create_account(state: &Arc<AppState>, email: &str, acme_url: &str) -> AppResult<Account> {
+async fn get_or_create_account(state: &Arc<AppState>, email: &str, acme_url: &str, eab: Option<(String, String)>) -> AppResult<Account> {
     let creds_json = get_secret_setting(&state.db, "acme_credentials").await?;
     if !creds_json.is_empty() {
         let creds: instant_acme::AccountCredentials = serde_json::from_str(&creds_json)
@@ -274,12 +338,17 @@ async fn get_or_create_account(state: &Arc<AppState>, email: &str, acme_url: &st
             .from_credentials(creds).await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Load: {e}")))
     } else {
+        let external_account = eab.map(|(kid, hmac_key)| {
+            let key_bytes = BASE64_URL_SAFE_NO_PAD.decode(&hmac_key)
+                .unwrap_or_else(|_| hmac_key.as_bytes().to_vec());
+            instant_acme::ExternalAccountKey::new(kid, &key_bytes)
+        });
         let (account, new_creds) = Account::builder().map_err(|e| AppError::Internal(anyhow::anyhow!("Builder: {e}")))?
             .create(&NewAccount {
                 contact: &[&format!("mailto:{email}")],
                 terms_of_service_agreed: true,
                 only_return_existing: false,
-            }, acme_url.to_string(), None).await.map_err(|e| AppError::Internal(anyhow::anyhow!("Create: {e}")))?;
+            }, acme_url.to_string(), external_account.as_ref()).await.map_err(|e| AppError::Internal(anyhow::anyhow!("Create: {e}")))?;
         set_secret_setting(&state.db, "acme_credentials", &serde_json::to_string(&new_creds)
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Serialize: {e}")))?).await?;
         Ok(account)
@@ -301,12 +370,13 @@ pub async fn cleanup_acme_txt(state: &Arc<AppState>, domain: &str) -> Result<usi
 pub async fn issue_certificate_sync(
    email: &str, domains: &[String], provider_name: &str,
    state: &Arc<AppState>,
-   use_staging: bool,
+   _use_staging: bool,
     db: &SqlitePool,
     _cert_cache: &Arc<std::sync::RwLock<HashMap<String, Arc<rustls::sign::CertifiedKey>>>>,
     log_buf: Option<Arc<tokio::sync::Mutex<Vec<LogLine>>>>,
 ) -> Result<crate::ssl_worker::SslResult, String> {
-    let acme_url = if use_staging { LETS_ENCRYPT_STAGING } else { LETS_ENCRYPT_URL };
+    let (acme_url, mut eab) = get_acme_url(state).await.map_err(|e| format!("ACME URL: {e}"))?;
+    let provider = get_setting(db, "acme_provider").await.unwrap_or_else(|_| "letsencrypt".to_string());
 
     let push = |level: &str, msg: &str| {
         if let Some(ref buf) = log_buf {
@@ -331,9 +401,19 @@ pub async fn issue_certificate_sync(
         }
     };
 
-    push("info", &format!("🔐 ACME (staging={use_staging})"));
+    push("info", &format!("🔐 ACME provider={provider}"));
 
-    let account = get_or_create_account_sync(db, email, acme_url).await
+    if provider == "zerossl" && eab.is_none() {
+        push("info", "🔑 注册 ZeroSSL EAB 凭证...");
+        let (kid, hmac) = auto_register_zerossl_eab(email).await
+            .map_err(|e| format!("ZeroSSL EAB: {e}"))?;
+        let _ = set_secret_setting(db, "zerossl_eab_kid", &kid).await;
+        let _ = set_secret_setting(db, "zerossl_eab_hmac", &hmac).await;
+        eab = Some((kid, hmac));
+        push("success", "ZeroSSL EAB 凭证已注册");
+    }
+
+    let account = get_or_create_account_sync(db, email, &acme_url, eab).await
         .map_err(|e| format!("Account: {e}"))?;
     push("success", "ACME 账户就绪");
 
@@ -458,7 +538,7 @@ pub async fn issue_certificate_sync(
     })
 }
 
-async fn get_or_create_account_sync(db: &SqlitePool, email: &str, acme_url: &str) -> Result<Account, String> {
+async fn get_or_create_account_sync(db: &SqlitePool, email: &str, acme_url: &str, eab: Option<(String, String)>) -> Result<Account, String> {
     let creds_json = get_secret_setting(db, "acme_credentials").await
         .map_err(|e| format!("Settings: {e}"))?;
     if !creds_json.is_empty() {
@@ -468,12 +548,17 @@ async fn get_or_create_account_sync(db: &SqlitePool, email: &str, acme_url: &str
             .from_credentials(creds).await
             .map_err(|e| format!("Load account: {e}"))
     } else {
+        let external_account = eab.map(|(kid, hmac_key)| {
+            let key_bytes = BASE64_URL_SAFE_NO_PAD.decode(&hmac_key)
+                .unwrap_or_else(|_| hmac_key.as_bytes().to_vec());
+            instant_acme::ExternalAccountKey::new(kid, &key_bytes)
+        });
         let (account, new_creds) = Account::builder().map_err(|e| format!("Builder: {e}"))?
             .create(&NewAccount {
                 contact: &[&format!("mailto:{email}")],
                 terms_of_service_agreed: true,
                 only_return_existing: false,
-            }, acme_url.to_string(), None).await.map_err(|e| format!("Create account: {e}"))?;
+            }, acme_url.to_string(), external_account.as_ref()).await.map_err(|e| format!("Create account: {e}"))?;
         set_secret_setting(db, "acme_credentials", &serde_json::to_string(&new_creds)
             .map_err(|e| format!("Serialize: {e}"))?).await
             .map_err(|e| format!("Save creds: {e}"))?;

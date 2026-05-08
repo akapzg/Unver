@@ -187,6 +187,7 @@ pub struct AppSettings {
     pub web_interface: String,
     pub panel_lan_only: Option<bool>,
     pub trusted_proxy: Option<String>,
+    pub acme_provider: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -209,6 +210,8 @@ pub struct UpdateSettings {
     pub panel_lan_only: Option<bool>,
     #[serde(default)]
     pub trusted_proxy: Option<String>,
+    #[serde(default)]
+    pub acme_provider: Option<String>,
 }
 
 // ── DDNS Status ────────────────────────────────────────────────────────────

@@ -38,6 +38,7 @@ pub async fn get_settings(
     let panel_lan_only = get_setting(&state.db, "panel_lan_only").await.unwrap_or_default() == "true";
     let trusted_proxy = get_setting(&state.db, "trusted_proxy").await.ok();
     let ddns_domains = get_setting(&state.db, "ddns_domains").await.unwrap_or_default();
+    let acme_provider = get_setting(&state.db, "acme_provider").await.unwrap_or_else(|_| "letsencrypt".to_string());
 
     // Mask token
     let masked_token = if ddns_cf_token.len() > 8 {
@@ -67,6 +68,7 @@ pub async fn get_settings(
         web_interface,
         panel_lan_only: Some(panel_lan_only),
         trusted_proxy,
+        acme_provider,
     }))
 }
 
@@ -148,6 +150,9 @@ pub async fn update_settings(
     }
     if let Some(proxy) = body.trusted_proxy {
         set_setting(&state.db, "trusted_proxy", &proxy).await?;
+    }
+    if let Some(provider) = body.acme_provider {
+        set_setting(&state.db, "acme_provider", &provider).await?;
     }
 
     get_settings(State(state), Extension(_user)).await

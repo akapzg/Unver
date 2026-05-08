@@ -15,7 +15,7 @@ const Ssl = () => {
   const [certs, setCerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ domain: '', sans: '', method: 'dns01', email: '' });
+  const [form, setForm] = useState({ domain: '', sans: '', method: 'dns01', email: '', acme_provider: 'letsencrypt' });
 
   // Issue progress tracking
   const [issuing, setIssuing] = useState(false);
@@ -57,7 +57,7 @@ const Ssl = () => {
   };
 
   const openModal = () => {
-    setForm({ domain: '', sans: '', method: 'dns01', email: settings?.acme_email || '' });
+    setForm({ domain: '', sans: '', method: 'dns01', email: settings?.acme_email || '', acme_provider: settings?.acme_provider || 'letsencrypt' });
     setShowModal(true);
   };
 
@@ -69,6 +69,7 @@ const Ssl = () => {
         sans: form.sans || undefined,
         method: form.method,
         email: form.email || undefined,
+        acme_provider: form.acme_provider,
       });
       setShowModal(false);
       setIssueJobId(data.job_id);
@@ -374,6 +375,16 @@ const Ssl = () => {
                   {t('dns01Hint')}
                   {settings?.ddns_provider && <> · {settings.ddns_provider === 'aliyun' ? 'Aliyun' : 'Cloudflare'}</>}
                 </p>
+              </div>
+              <div className="form-group">
+                <label className="form-label">{t('acmeProvider')}</label>
+                <select className="form-input" value={form.acme_provider} onChange={e => setForm({...form, acme_provider: e.target.value})}>
+                  <option value="letsencrypt">{t('letsencrypt')}</option>
+                  <option value="zerossl">{t('zerossl')}</option>
+                </select>
+                {form.acme_provider === 'zerossl' && (
+                  <p style={{fontSize:11,opacity:0.6,margin:'4px 0 0'}}>{t('zerosslAutoRegister')}</p>
+                )}
               </div>
               <footer className="modal-footer">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}><X size={16} />{t('cancel')}</button>
