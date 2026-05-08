@@ -45,7 +45,6 @@ CREATE TABLE IF NOT EXISTS proxy_rules (
     rule_type     TEXT NOT NULL DEFAULT 'proxy',
     redirect_code INTEGER DEFAULT 301,
     ssl_enabled   INTEGER NOT NULL DEFAULT 0,
-    cert_id       TEXT,
     force_https   INTEGER NOT NULL DEFAULT 0,
     enabled       INTEGER NOT NULL DEFAULT 1,
     status        TEXT NOT NULL DEFAULT 'unknown',

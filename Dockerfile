@@ -38,8 +38,10 @@ COPY vendor ../vendor
 
 # Cache dependencies with a dummy build
 ENV DATABASE_URL=sqlite:///tmp/unver-build.db
-RUN for f in migrations/*.sql; do sqlite3 /tmp/unver-build.db < "$f"; done
-RUN mkdir -p src && echo "fn main() {}" > src/main.rs && \
+RUN sqlite3 /tmp/unver-build.db < migrations/001_init.sql && \
+    sqlite3 /tmp/unver-build.db < migrations/002_cert_id.sql && \
+    sqlite3 /tmp/unver-build.db < migrations/003_add_cert_source.sql && \
+    mkdir -p src && echo "fn main() {}" > src/main.rs && \
     . /tmp/target.env && \
     if [ "${TARGETPLATFORM}" = "linux/amd64" ]; then \
       export RUSTFLAGS="-C link-arg=-fuse-ld=mold"; \
