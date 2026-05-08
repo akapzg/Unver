@@ -116,11 +116,23 @@ jobs:
           DATABASE_URL="sqlite:unver-ci.db" sqlite3 unver-ci.db < migrations/001_init.sql
           DATABASE_URL="sqlite:unver-ci.db" cross build --release --target aarch64-unknown-linux-musl
 
-      - name: Package binary
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build frontend
         run: |
-          mkdir -p dist
-          tar -czf dist/${{ matrix.artifact }}.tar.gz \
-            -C backend/target/${{ matrix.target }}/release unver
+          cd frontend
+          npm install
+          npm run build
+
+      - name: Package binary + static
+        run: |
+          mkdir -p dist pkg
+          cp backend/target/${{ matrix.target }}/release/unver pkg/
+          cp -r frontend/dist pkg/static
+          tar -czf dist/${{ matrix.artifact }}.tar.gz -C pkg unver static
 
       - uses: actions/upload-artifact@v4
         with:

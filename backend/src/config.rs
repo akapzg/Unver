@@ -1,6 +1,6 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use anyhow::Result;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
@@ -30,11 +30,28 @@ impl Config {
         let config_path = std::env::var("UNVER_CONFIG")
             .unwrap_or_else(|_| "./data/config.toml".to_string());
 
-        if std::path::Path::new(&config_path).exists() {
+        let mut config = if std::path::Path::new(&config_path).exists() {
             let content = std::fs::read_to_string(&config_path)?;
-            Ok(toml::from_str(&content)?)
+            toml::from_str(&content)?
         } else {
-            Ok(Self::default())
+            Self::default()
+        };
+
+        config.resolve_paths();
+        Ok(config)
+    }
+
+    fn resolve_paths(&mut self) {
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .unwrap_or_else(|| PathBuf::from("."));
+
+        if self.static_dir.is_relative() {
+            self.static_dir = exe_dir.join(&self.static_dir);
+        }
+        if self.data_dir.is_relative() {
+            self.data_dir = exe_dir.join(&self.data_dir);
         }
     }
 

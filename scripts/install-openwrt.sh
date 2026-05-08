@@ -70,6 +70,16 @@ mv "$TMPDIR/unver" "$INSTALL_DIR/unver" \
     || err "Failed to install to $INSTALL_DIR. Overlay may be full (check: df /overlay)"
 log "Binary installed: $INSTALL_DIR/unver"
 
+# ── Install static files ────────────────────────────────────────────────────
+if [ -d "$TMPDIR/static" ]; then
+    rm -rf "$INSTALL_DIR/static"
+    mv "$TMPDIR/static" "$INSTALL_DIR/static" \
+        || err "Failed to install static files to $INSTALL_DIR"
+    log "Static files installed: $INSTALL_DIR/static/"
+else
+    log "Note: No static/ directory in archive (frontend served from container)"
+fi
+
 # ── Create directories ─────────────────────────────────────────────────────
 mkdir -p "$DATA_DIR" "$CONFIG_DIR" || err "Failed to create directories"
 
