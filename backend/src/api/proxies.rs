@@ -149,6 +149,11 @@ pub async fn update(
         sqlx::query!("UPDATE proxy_rules SET name = ?, updated_at = datetime('now') WHERE id = ?", name, id)
             .execute(&state.db).await?;
     }
+    if let Some(ref domain) = body.domain {
+        validate_domain(domain)?;
+        sqlx::query!("UPDATE proxy_rules SET domain = ?, updated_at = datetime('now') WHERE id = ?", domain, id)
+            .execute(&state.db).await?;
+    }
     if let Some(target_url) = body.target_url {
         sqlx::query!("UPDATE proxy_rules SET target_url = ?, updated_at = datetime('now') WHERE id = ?", target_url, id)
             .execute(&state.db).await?;

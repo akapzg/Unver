@@ -44,6 +44,7 @@ pub struct CreateProxyRule {
 #[derive(Debug, Deserialize)]
 pub struct UpdateProxyRule {
     pub name: Option<String>,
+    pub domain: Option<String>,
     pub target_url: Option<String>,
     pub port_group_id: Option<String>,
     pub rule_type: Option<String>,
