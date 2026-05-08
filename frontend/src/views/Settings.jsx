@@ -68,10 +68,30 @@ const Settings = () => {
     }
   };
 
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      addToast(t('copySuccess'), 'success');
+    } catch (_clipboardError) {
+      // Fallback for non-HTTPS (IP access): use execCommand
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        addToast(t('copySuccess'), 'success');
+      } catch (_execError) {
+        addToast(t('copyFailed'), 'error');
+      }
+    }
   };
 
   const handleDeleteKey = async (key) => {
