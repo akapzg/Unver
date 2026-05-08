@@ -106,7 +106,9 @@ jobs:
           cd backend
           sudo apt-get install -y sqlite3
           DATABASE_URL="sqlite:/tmp/unver.db" sqlite3 /tmp/unver.db < migrations/001_init.sql
-          cargo build --release --target ${{ matrix.target }}
+          DATABASE_URL="sqlite:/tmp/unver.db" sqlite3 /tmp/unver.db < migrations/002_cert_id.sql
+          DATABASE_URL="sqlite:/tmp/unver.db" sqlite3 /tmp/unver.db < migrations/003_add_cert_source.sql
+          DATABASE_URL="sqlite:/tmp/unver.db" cargo build --release --target ${{ matrix.target }}
 
       - name: Build backend (aarch64 musl via cross)
         if: matrix.target == 'aarch64-unknown-linux-musl'
@@ -114,6 +116,8 @@ jobs:
           cd backend
           sudo apt-get install -y sqlite3
           DATABASE_URL="sqlite:unver-ci.db" sqlite3 unver-ci.db < migrations/001_init.sql
+          DATABASE_URL="sqlite:unver-ci.db" sqlite3 unver-ci.db < migrations/002_cert_id.sql
+          DATABASE_URL="sqlite:unver-ci.db" sqlite3 unver-ci.db < migrations/003_add_cert_source.sql
           DATABASE_URL="sqlite:unver-ci.db" cross build --release --target aarch64-unknown-linux-musl
 
       - name: Setup Node.js
