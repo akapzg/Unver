@@ -390,12 +390,14 @@ List all proxy rules.
     "redirect_code": null,
     "port_group_id": "uuid",
     "ssl_enabled": true,
+    "cert_id": "uuid-or-null",
     "force_https": true,
     "enabled": true,
     "status": "online",
     "last_checked_at": "2025-01-01T00:00:00Z",
     "created_at": "2025-01-01T00:00:00Z",
-    "updated_at": "2025-01-01T00:00:00Z"
+    "updated_at": "2025-01-01T00:00:00Z",
+    "active_connections": 0
   }
 ]
 ```
