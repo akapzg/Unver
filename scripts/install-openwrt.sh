@@ -23,6 +23,9 @@ cleanup() { rm -rf "$TMPDIR"; }
 trap cleanup EXIT INT TERM
 mkdir -p "$TMPDIR"
 
+# ── Clean fallback data from previous installs ───────────────────────────────
+rm -rf "$INSTALL_DIR/data" 2>/dev/null || true
+
 # ── Detect architecture ────────────────────────────────────────────────────
 ARCH=$(uname -m)
 case "$ARCH" in

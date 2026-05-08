@@ -580,11 +580,26 @@ fn uninstall() {
             println!("Removed: {}", static_dir.display());
         }
 
+    // 4. Remove data directories
+    // Primary data dir (config + DB)
+    let data_dirs = ["/var/lib/unver", "/etc/unver"];
+    for dir in &data_dirs {
+        if std::path::Path::new(dir).exists() {
+            if std::fs::remove_dir_all(dir).is_ok() {
+                println!("Removed: {}", dir);
+            }
+        }
+    }
+
+    // Fallback data dir (created when binary runs without DATABASE_URL env)
+    let fallback_data = exe_dir.join("data");
+    if fallback_data.exists()
+        && std::fs::remove_dir_all(&fallback_data).is_ok() {
+            println!("Removed: {}", fallback_data.display());
+        }
+
     println!();
     println!("Uninstall complete.");
-    println!("Data directory was preserved. To remove it manually:");
-    println!("  rm -rf /var/lib/unver      (Linux)");
-    println!("  rm -rf /etc/unver          (OpenWrt)");
 }
 
 /// Recursively copy a directory.

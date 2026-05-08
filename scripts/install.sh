@@ -39,6 +39,10 @@ else
 fi
 
 TMPDIR=$(mktemp -d)
+
+# ── Clean fallback data from previous installs ───────────────────────────────
+sudo rm -rf "$INSTALL_DIR/data" 2>/dev/null || true
+
 log "Downloading: $URL"
 curl -fsSL "$URL" -o "$TMPDIR/unver.tar.gz" || err "Download failed"
 
