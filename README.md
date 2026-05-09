@@ -1,8 +1,8 @@
-# Unver — Internal Developer Documentation
+# Unver — Developer Documentation
 
 [中文文档](README.zh.md) · [English Usage Guide](README.doc.md) · [中文使用说明](README.zh.doc.md) · [API Docs](docs/API.md) · [中文 API 文档](docs/API.zh.md)
 
-> Lightweight reverse proxy management panel. Source repository (closed-source).
+> Lightweight reverse proxy management panel.
 
 ---
 
@@ -69,7 +69,7 @@ Unver/
 ├── docker-compose.prod.yml     # Production environment (pull image)
 ├── Dockerfile                  # Multi-arch build (amd64/arm64)
 ├── .github/workflows/
-│   └── release.yml             # Release auto-build + publish to public repo
+│   └── release.yml             # Release auto-build + attach binaries
 ├── scripts/
 │   ├── install.sh              # Linux one-click install script
 │   └── install-openwrt.sh      # OpenWrt one-click install script
@@ -196,20 +196,20 @@ DATABASE_URL="sqlite:../data/unver.db" ./target/release/unver start
 
 ### Release Process
 
-1. Push code to private repo `main` branch
+1. Push code to `main` branch
 2. Tag: `git tag v1.0.0 && git push origin v1.0.0`
 3. GitHub Actions automatically:
    - Builds multi-arch Docker image → `ghcr.io/akapzg/unver:1.0.0`
    - Compiles `x86_64` / `arm64` binaries
-   - Creates release on public repo `akapzg/Unver` with binaries attached
+   - Creates release with binaries attached
 
 ### Prerequisites
 
-In private repo Settings → Secrets:
+In repo Settings → Secrets:
 
 | Secret | Description |
 |---|---|
-| `PUBLIC_REPO_TOKEN` | GitHub PAT with `repo` scope, used to create releases on the public repo |
+| `PUBLIC_REPO_TOKEN` | GitHub PAT with `repo` scope, used for GHCR push |
 
 ---
 

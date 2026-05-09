@@ -1,8 +1,8 @@
-# Unver — 内部开发文档
+# Unver — 开发文档
 
 [English](README.md) · [API 文档](docs/API.md) · [中文 API 文档](docs/API.zh.md)
 
-> 轻量反向代理管理面板。源码仓库（闭源）。
+> 轻量反向代理管理面板。
 
 ---
 
@@ -67,7 +67,7 @@ Unver/
 ├── docker-compose.prod.yml     # 生产环境（拉镜像）
 ├── Dockerfile                  # 多架构构建（amd64/arm64）
 ├── .github/workflows/
-│   └── release.yml             # Release 自动构建 + 发布到公开仓库
+│   └── release.yml             # Release 自动构建 + 上传发布资产
 ├── scripts/
 │   ├── install.sh              # Linux 一键安装脚本
 │   └── install-openwrt.sh      # OpenWrt 一键安装脚本
@@ -195,20 +195,20 @@ DATABASE_URL="sqlite:../data/unver.db" ./target/release/unver start
 
 ### Release 流程
 
-1. 推送代码到私有仓库 `main` 分支
+1. 推送代码到 `main` 分支
 2. 打 tag：`git tag v1.0.0 && git push origin v1.0.0`
 3. GitHub Actions 自动：
    - 构建多架构 Docker 镜像 → `ghcr.io/akapzg/unver:1.0.0`
    - 编译 `x86_64` / `arm64` 二进制
-   - 在公开仓库 `akapzg/Unver` 创建 Release 并上传二进制
+   - 创建 Release 并上传二进制
 
 ### 前置准备
 
-在私有仓库 Settings → Secrets 中配置：
+在仓库 Settings → Secrets 中配置：
 
 | Secret | 说明 |
 |---|---|
-| `PUBLIC_REPO_TOKEN` | 有 `repo` 权限的 GitHub PAT，用于在公开仓库创建 release |
+| `PUBLIC_REPO_TOKEN` | 有 `repo` 权限的 GitHub PAT，用于推送到 GHCR |
 
 ---
 
