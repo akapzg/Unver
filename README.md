@@ -1,6 +1,6 @@
 # Unver — Internal Developer Documentation
 
-[中文文档](README.zh.internal.md)
+[中文文档](README.zh.md) · [English Usage Guide](README.doc.md) · [中文使用说明](README.zh.doc.md) · [API Docs](docs/API.md) · [中文 API 文档](docs/API.zh.md)
 
 > Lightweight reverse proxy management panel. Source repository (closed-source).
 

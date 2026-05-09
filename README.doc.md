@@ -1,6 +1,6 @@
 # Unver
 
-[中文文档](README.zh.md)
+[中文文档](README.zh.doc.md)
 
 > A minimalist, high-performance reverse proxy panel designed for home / personal use.
 
