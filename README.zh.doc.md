@@ -71,9 +71,9 @@ unver uninstall     # 一键卸载（保留数据）
 
 ## 📄 许可证
 
-本软件使用专有许可证，禁止反编译、修改及未经授权的再分发。
+源码可见，基于 Elastic License 2.0。详见 [LICENSE](LICENSE)。
 
-详见 [LICENSE](LICENSE)。
+商业授权请联系版权方。
 
 ## 🔗 第三方许可
 

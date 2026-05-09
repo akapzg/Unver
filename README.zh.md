@@ -240,6 +240,4 @@ Docker 中二进制位于 `/app/unver`，前端文件位于 `/app/static/`。
 
 ## 许可证
 
-专有许可证。详见 [LICENSE](LICENSE)。
-
-禁止反编译、修改、未经授权的再分发或售卖。
+源码可见 (Elastic License 2.0)。详见 [LICENSE](LICENSE)。

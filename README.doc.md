@@ -71,9 +71,9 @@ unver uninstall # Uninstall (preserves data)
 
 ## 📄 License
 
-Proprietary license. No decompilation, modification, or unauthorized redistribution.
+Source-available under Elastic License 2.0. See [LICENSE](LICENSE).
 
-See [LICENSE](LICENSE).
+For commercial licensing, contact the copyright holder.
 
 ## 🔗 Third-Party Licenses
 

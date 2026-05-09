@@ -241,6 +241,4 @@ In Docker, the binary is at `/app/unver` and frontend files at `/app/static/`.
 
 ## License
 
-Proprietary license. See [LICENSE](LICENSE).
-
-No decompilation, modification, unauthorized redistribution, or resale.
+Source-available (Elastic License 2.0). See [LICENSE](LICENSE).
