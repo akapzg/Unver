@@ -45,8 +45,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}:${{ env.VERSION }}
-            ${{ env.REGISTRY }}/${{ github.repository }}:latest
+            ${{ env.REGISTRY }}/akapzg/unver:${{ env.VERSION }}
+            ${{ env.REGISTRY }}/akapzg/unver:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -147,7 +147,7 @@ jobs:
 
   # ── Attach binary assets to the release ──────────────────────────────────
   release-assets:
-    needs: [binaries]
+    needs: [docker, binaries]
     runs-on: ubuntu-latest
     permissions:
       contents: write
